@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+spade_venv/
+.pytest_cache/
+
+# SPADE / pyjabber local server state
+server.db*
+
+# Simulation outputs (results/ is versioned, raw runs are not)
+runs/
+spikes/out/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/

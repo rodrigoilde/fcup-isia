@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CEMR Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+    --cell-a: #f3f2ee; --cell-b: #ecebe6;
+    --dv: #2a78d6; --dr: #eb6834; --at: #1baf7a; --cp: #eda100;
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+      --cell-a: #222220; --cell-b: #2d2d2a;
+      --dv: #3987e5; --dr: #d95926; --at: #199e70; --cp: #c98500;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --cell-a: #222220; --cell-b: #2d2d2a;
+    --dv: #3987e5; --dr: #d95926; --at: #199e70; --cp: #c98500;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 12px 16px;
+           border-bottom: 1px solid var(--ring); background: var(--surface); }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .sub { color: var(--ink-2); font-size: 13px; }
+  .clock { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .controls { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+  button, select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--axis);
+                   border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  input[type=range] { width: 180px; }
+  .badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--axis); }
+  .badge.live { color: var(--critical); border-color: var(--critical); }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; padding: 16px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 12px; }
+  #mapwrap { position: relative; }
+  canvas { width: 100%; display: block; border-radius: 8px; }
+  #tooltip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--ring);
+             border-radius: 6px; padding: 6px 8px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+             display: none; max-width: 240px; }
+  .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+  .tile { border: 1px solid var(--ring); border-radius: 8px; padding: 8px 10px; }
+  .tile .v { font-size: 20px; font-weight: 600; }
+  .tile .l { color: var(--ink-2); font-size: 12px; }
+  h2 { font-size: 13px; margin: 12px 0 6px; color: var(--ink-2); font-weight: 600; text-transform: uppercase;
+       letter-spacing: .04em; }
+  .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 12px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; border: 1px solid var(--axis); }
+  #cases { max-height: 260px; overflow: auto; font-size: 12px; }
+  .case { border-top: 1px solid var(--grid); padding: 6px 0; }
+  .case b { font-weight: 600; }
+  .chip { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 4px; margin-left: 4px;
+          border: 1px solid var(--axis); color: var(--ink-2); }
+  #feed { font-size: 12px; max-height: 220px; overflow: auto; font-variant-numeric: tabular-nums; }
+  #feed div { padding: 2px 0; border-top: 1px solid var(--grid); color: var(--ink-2); }
+  #feed div b { color: var(--ink); font-weight: 600; }
+  label.toggle { font-size: 12px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Community Emergency Medical Response</h1>
+  <span class="sub" id="title">connecting…</span>
+  <span class="badge" id="mode">—</span>
+  <span class="clock" id="clock">t = 0:00</span>
+  <div class="controls">
+    <button id="play" aria-label="Play or pause">Pause</button>
+    <select id="speed" aria-label="Playback speed">
+      <option value="10">×10</option><option value="30" selected>×30</option>
+      <option value="60">×60</option><option value="120">×120</option>
+    </select>
+    <input type="range" id="scrub" min="0" max="3600" value="0" step="1" aria-label="Simulated time">
+    <label class="toggle"><input type="checkbox" id="background"> background traffic</label>
+    <button id="theme" aria-label="Toggle theme">◐</button>
+  </div>
+</header>
+<main>
+  <section class="panel" id="mapwrap">
+    <canvas id="map" height="800"></canvas>
+    <div id="tooltip"></div>
+  </section>
+  <aside>
+    <div class="panel">
+      <div class="tiles">
+        <div class="tile"><div class="v" id="m-cand">0</div><div class="l">candidates opened</div></div>
+        <div class="tile"><div class="v" id="m-decl">0</div><div class="l">cases declared</div></div>
+        <div class="tile"><div class="v" id="m-lat">—</div><div class="l">median verification (s)</div></div>
+        <div class="tile"><div class="v" id="m-cpr">—</div><div class="l">median time to CPR (s)</div></div>
+        <div class="tile"><div class="v" id="m-false">0</div><div class="l">false alarms closed</div></div>
+        <div class="tile"><div class="v" id="m-msg">0</div><div class="l">messages (dropped)</div></div>
+      </div>
+      <h2>Legend</h2>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--dv)"></i>Detection &amp; verification</span>
+        <span><i class="sw" style="background:var(--dr)"></i>Dispatch &amp; response</span>
+        <span><i class="sw" style="background:var(--at)"></i>Bystander guidance</span>
+        <span><i class="sw" style="background:var(--cp)"></i>Trust &amp; privacy</span>
+        <span>■ AED hub (label = AED state)</span><span>▲ ambulance</span>
+        <span>● volunteer (ring = committed)</span><span>○ bystander</span>
+        <span>· citizen device</span><span>◎ incident (P1/P2/P3)</span>
+      </div>
+      <h2>Cases</h2>
+      <div id="cases"></div>
+      <h2>Events</h2>
+      <div id="feed"></div>
+    </div>
+  </aside>
+</main>
+<script>
+"use strict";
+const SO = { P01:"dv", P02:"dv", P03:"dv", P04:"dv", P06:"dv", P07:"dv", P26:"dv",
+             P08:"dr", P09:"dr", P10:"dr", P11:"dr", P12:"dr", P13:"dr", P14:"dr", P19:"dr", P20:"dr", P28:"dr",
+             P05:"at", P15:"at", P16:"at", P17:"at", P18:"at",
+             P21:"cp", P22:"cp", P23:"cp", P24:"cp" };
+const BACKGROUND = new Set(["P23", "P25", "P27"]);
+const AED_LABEL = { AVAILABLE: "AED", RESERVED: "AED reserved", IN_USE: "AED in use", UNAVAILABLE: "AED off" };
+const AED_STATUS = { AVAILABLE: "good", RESERVED: "warning", IN_USE: "serious", UNAVAILABLE: null };
+const FEED_KINDS = new Set(["candidate_opened", "case_declared", "candidate_discarded", "case_closed", "award",
+  "cpr_started", "aed_attached", "shock", "ems_arrived", "guidance_started", "handed_over", "fault_hub_crash",
+  "takeover", "case_retracted", "gt_collapse", "recruit", "award_failed"]);
+
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const canvas = document.getElementById("map"), ctx = canvas.getContext("2d");
+const tooltip = document.getElementById("tooltip");
+let events = [], idx = 0, mode = "replay", factor = 10, duration = 3600, playing = true, speed = 30;
+let simT = 0, lastFrame = performance.now(), lastPanel = 0, liveAnchor = null;
+let S = null, bounds = null, cellsImage = null;
+
+function freshState() {
+  return { hubs: {}, cells: {}, agents: {}, incidents: {}, cases: {}, arcs: [], feed: [],
+           metrics: { cand: 0, decl: 0, lat: [], cpr: [], falseClosed: 0, msgs: 0, dropped: 0 } };
+}
+
+// ---------- event application ----------
+function apply(e) {
+  const k = e.kind;
+  if (k === "run_start") {
+    factor = e.factor || 10; duration = e.duration || 3600;
+    document.getElementById("scrub").max = duration;
+    for (const [id, c] of Object.entries(e.cells || {})) S.cells[id] = { hub: c.hub, neighbours: c.neighbours };
+    cellsImage = null;
+  } else if (k === "agent") {
+    S.agents[e.agent] = { kind: e.agent_kind, pos: e.pos, move: null, committed: null, witnessing: false };
+    if (e.agent_kind === "hub") S.hubs[e.agent] = { pos: e.pos, aed: "AVAILABLE", down: false };
+  } else if (k === "move") {
+    const a = S.agents[e.agent]; if (a) a.move = e;
+  } else if (k === "aed_state") {
+    const h = S.hubs["hub" + e.aed]; if (h) h.aed = e.state;
+  } else if (k === "fault_hub_crash") {
+    const h = S.hubs[e.agent]; if (h) h.down = true;
+  } else if (k === "gt_collapse") {
+    S.incidents[e.incident] = { pos: e.pos, priority: e.priority, t: e.t, done: false };
+  } else if (k === "candidate_opened") {
+    S.metrics.cand++;
+    S.cases[e.case] = { hub: e.agent, state: "VERIFYING", priority: "", awards: 0, t: e.t, steps: [] };
+  } else if (k === "case_declared") {
+    S.metrics.decl++; if (e.latency != null) S.metrics.lat.push(e.latency);
+    const c = S.cases[e.case]; if (c) { c.state = "DECLARED"; c.priority = e.priority; }
+  } else if (k === "candidate_discarded") {
+    const c = S.cases[e.case]; if (c) c.state = "DISCARDED";
+  } else if (k === "case_closed") {
+    const c = S.cases[e.case]; if (c) c.state = e.outcome;
+    if (e.outcome === "FALSE_ALARM") S.metrics.falseClosed++;
+  } else if (k === "case_taken_over") {
+    const c = S.cases[e.case]; if (c) c.hub = e.agent;
+  } else if (k === "award") {
+    const c = S.cases[e.case]; if (c) { c.awards++; c.state = "DISPATCHED"; }
+  } else if (k === "committed") {
+    const a = S.agents[e.agent]; if (a) a.committed = e.case;
+  } else if (k === "mission_end") {
+    const a = S.agents[e.agent]; if (a) a.committed = null;
+  } else if (k === "witnessing") {
+    const a = S.agents[e.agent]; if (a) a.witnessing = true;
+  } else if (k === "cpr_started") {
+    const inc = S.incidents[e.incident]; if (inc && !inc.cpr) { inc.cpr = e.t; S.metrics.cpr.push(e.t - inc.t); }
+  } else if (k === "ems_arrived") {
+    const inc = S.incidents[e.incident]; if (inc) inc.ems = e.t;
+  } else if (k === "msg") {
+    if (e.dropped) S.metrics.dropped++; else S.metrics.msgs++;
+    if (!e.dropped && simT - e.t < 5)            // no burst of old arcs after a jump in time
+      S.arcs.push({ src: e.src, dst: e.dst, so: SO[e.protocol] || null, bg: BACKGROUND.has(e.protocol),
+                    born: performance.now() });
+  }
+  if (FEED_KINDS.has(k)) S.feed.unshift(e);
+  if (S.feed.length > 60) S.feed.length = 60;
+}
+
+function advanceTo(t) {
+  if (t < (events[idx - 1] || { t: -1 }).t) { S = freshState(); idx = 0; }
+  while (idx < events.length && events[idx].t <= t) apply(events[idx++]);
+}
+
+// ---------- geometry ----------
+function position(a, t) {
+  const m = a.move;
+  if (!m) return a.pos;
+  if (t <= m.t_start) return m.src;
+  if (t >= m.t_arrive) return m.dst;
+  const f = (t - m.t_start) / (m.t_arrive - m.t_start);
+  return [m.src[0] + f * (m.dst[0] - m.src[0]), m.src[1] + f * (m.dst[1] - m.src[1])];
+}
+function computeBounds() {
+  const pad = 160;                                   // the city; units further away are pinned to the edge
+  return { x0: -pad, x1: 3000 + pad, y0: -pad, y1: 3000 + pad };
+}
+function offMap(p) { const b = bounds; return p[0] < b.x0 || p[0] > b.x1 || p[1] < b.y0 || p[1] > b.y1; }
+function pin(p) { const b = bounds, m = 40;
+  return [Math.min(Math.max(p[0], b.x0 + m), b.x1 - m), Math.min(Math.max(p[1], b.y0 + m), b.y1 - m)]; }
+function project(p) {
+  const w = canvas.width, h = canvas.height, b = bounds;
+  const s = Math.min(w / (b.x1 - b.x0), h / (b.y1 - b.y0));
+  const ox = (w - s * (b.x1 - b.x0)) / 2, oy = (h - s * (b.y1 - b.y0)) / 2;
+  return [ox + (p[0] - b.x0) * s, h - (oy + (p[1] - b.y0) * s)];
+}
+function buildCells() {
+  const hubs = Object.entries(S.cells);
+  if (!hubs.length) return null;
+  const off = document.createElement("canvas"); off.width = canvas.width; off.height = canvas.height;
+  const g = off.getContext("2d"), step = 50, n = 3000 / step;
+  const nearest = (x, y) => { let best = null, d = 1e18;
+    for (const [id, c] of hubs) { const dd = (c.hub[0]-x)**2 + (c.hub[1]-y)**2; if (dd < d) { d = dd; best = id; } }
+    return best; };
+  const grid = [];
+  for (let i = 0; i < n; i++) { grid.push([]); for (let j = 0; j < n; j++) grid[i].push(nearest((i+.5)*step, (j+.5)*step)); }
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const [x0, y0] = project([i*step, (j+1)*step]), [x1, y1] = project([(i+1)*step, j*step]);
+    g.fillStyle = (+grid[i][j]) % 2 ? css("--cell-a") : css("--cell-b");
+    g.fillRect(x0, y0, x1 - x0 + 0.5, y1 - y0 + 0.5);
+  }
+  g.strokeStyle = css("--axis"); g.lineWidth = 1;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    if (i + 1 < n && grid[i][j] !== grid[i+1][j]) { const a = project([(i+1)*step, j*step]), b = project([(i+1)*step, (j+1)*step]);
+      g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke(); }
+    if (j + 1 < n && grid[i][j] !== grid[i][j+1]) { const a = project([i*step, (j+1)*step]), b = project([(i+1)*step, (j+1)*step]);
+      g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke(); }
+  }
+  return off;
+}
+
+// ---------- drawing ----------
+function draw(now) {
+  const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth;
+  if (canvas.width !== Math.round(w * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(w * dpr * 0.78); cellsImage = null; }
+  if (!bounds && Object.keys(S.agents).length) bounds = computeBounds();
+  ctx.fillStyle = css("--surface"); ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (!bounds) return;
+  if (!cellsImage) cellsImage = buildCells();
+  if (cellsImage) ctx.drawImage(cellsImage, 0, 0);
+  const u = canvas.width / 900;                       // drawing unit, scales with the canvas
+  const showBg = document.getElementById("background").checked;
+
+  // message arcs (fade over 900 ms of real time)
+  S.arcs = S.arcs.filter(a => now - a.born < 900);
+  for (const a of S.arcs) {
+    if (a.bg && !showBg) continue;
+    const A = S.agents[a.src], B = S.agents[a.dst];
+    if (!A || !B || a.src === a.dst) continue;
+    const p = project(pin(position(A, simT))), q = project(pin(position(B, simT)));
+    ctx.globalAlpha = 1 - (now - a.born) / 900;
+    ctx.strokeStyle = a.so ? css("--" + a.so) : css("--muted"); ctx.lineWidth = 1.5 * u;
+    ctx.beginPath(); ctx.moveTo(...p);
+    const mx = (p[0] + q[0]) / 2 - (q[1] - p[1]) * 0.15, my = (p[1] + q[1]) / 2 + (q[0] - p[0]) * 0.15;
+    ctx.quadraticCurveTo(mx, my, ...q); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // incidents
+  for (const [id, inc] of Object.entries(S.incidents)) {
+    if (simT - inc.t > 1200 || simT < inc.t) continue;
+    const [x, y] = project(inc.pos), pulse = 1 + 0.25 * Math.sin(now / 250);
+    ctx.strokeStyle = css("--critical"); ctx.lineWidth = 2 * u;
+    ctx.beginPath(); ctx.arc(x, y, 9 * u * pulse, 0, 2 * Math.PI); ctx.stroke();
+    ctx.fillStyle = css("--ink"); ctx.font = `${11 * u}px system-ui`; ctx.fillText(`${inc.priority} ${id}`, x + 12 * u, y - 8 * u);
+  }
+  // agents
+  for (const [name, a] of Object.entries(S.agents)) {
+    if (a.kind === "hub") continue;
+    const [x, y] = project(pin(position(a, simT)));
+    ctx.fillStyle = css("--ink"); ctx.strokeStyle = css("--ink");
+    if (a.kind === "device") { ctx.fillStyle = css("--muted"); ctx.beginPath(); ctx.arc(x, y, 1.6 * u, 0, 7); ctx.fill(); }
+    else if (a.kind === "bystander") { ctx.lineWidth = 1.5 * u; ctx.beginPath(); ctx.arc(x, y, 4 * u, 0, 7); ctx.stroke(); }
+    else if (a.kind === "volunteer") {
+      ctx.beginPath(); ctx.arc(x, y, 3.6 * u, 0, 7); ctx.fill();
+      if (a.committed) { ctx.strokeStyle = css("--dr"); ctx.lineWidth = 2 * u; ctx.beginPath(); ctx.arc(x, y, 7 * u, 0, 7); ctx.stroke(); }
+    } else if (a.kind === "ems") {
+      ctx.beginPath(); ctx.moveTo(x, y - 7 * u); ctx.lineTo(x + 6 * u, y + 5 * u); ctx.lineTo(x - 6 * u, y + 5 * u); ctx.closePath(); ctx.fill();
+      if (offMap(position(a, simT))) { ctx.font = `${10 * u}px system-ui`; ctx.fillText(`${name} (off map)`, x + 8 * u, y + 4 * u); }
+    }
+  }
+  // hubs with AED state (status colour + label)
+  for (const [name, h] of Object.entries(S.hubs)) {
+    const [x, y] = project(h.pos), s = 7 * u;
+    const status = AED_STATUS[h.aed];
+    ctx.fillStyle = status ? css("--" + status) : css("--muted");
+    ctx.strokeStyle = css("--surface"); ctx.lineWidth = 2 * u;
+    ctx.fillRect(x - s, y - s, 2 * s, 2 * s); ctx.strokeRect(x - s, y - s, 2 * s, 2 * s);
+    ctx.fillStyle = css("--ink"); ctx.font = `600 ${10.5 * u}px system-ui`;
+    ctx.fillText(h.down ? `${name} ✕ down` : `${name} · ${AED_LABEL[h.aed] || h.aed}`, x + s + 3 * u, y + 4 * u);
+  }
+}
+
+// ---------- side panel ----------
+const median = xs => { if (!xs.length) return "—"; const s = [...xs].sort((a, b) => a - b); return Math.round(s[Math.floor((s.length - 1) / 2)]); };
+function panel() {
+  const m = S.metrics;
+  document.getElementById("m-cand").textContent = m.cand;
+  document.getElementById("m-decl").textContent = m.decl;
+  document.getElementById("m-lat").textContent = median(m.lat);
+  document.getElementById("m-cpr").textContent = median(m.cpr);
+  document.getElementById("m-false").textContent = m.falseClosed;
+  document.getElementById("m-msg").textContent = `${m.msgs} (${m.dropped})`;
+  const cases = Object.entries(S.cases).sort((a, b) => b[1].t - a[1].t).slice(0, 12);
+  document.getElementById("cases").innerHTML = cases.map(([id, c]) =>
+    `<div class="case"><b>${id}</b><span class="chip">${c.priority || "?"}</span><span class="chip">${c.state}</span>` +
+    `<span class="chip">${c.awards} awarded</span><div class="sub">hub ${c.hub} · opened ${fmt(c.t)}</div></div>`).join("");
+  document.getElementById("feed").innerHTML = S.feed.slice(0, 30).map(e =>
+    `<div>${fmt(e.t)} <b>${e.kind.replace(/_/g, " ")}</b> ${describe(e)}</div>`).join("");
+}
+function describe(e) {
+  return [e.case, e.incident, e.responder, e.task, e.by, e.agent, e.outcome, e.priority, e.reason]
+    .filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(" · ");
+}
+const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+
+// ---------- hover ----------
+canvas.addEventListener("mousemove", ev => {
+  if (!bounds) return;
+  const r = canvas.getBoundingClientRect(), dpr = canvas.width / r.width;
+  const mx = (ev.clientX - r.left) * dpr, my = (ev.clientY - r.top) * dpr;
+  let best = null, d = (14 * dpr) ** 2;
+  for (const [name, a] of Object.entries(S.agents)) {
+    const [x, y] = project(pin(position(a, simT))), dd = (x - mx) ** 2 + (y - my) ** 2;
+    if (dd < d) { d = dd; best = [name, a]; }
+  }
+  if (!best) { tooltip.style.display = "none"; return; }
+  const [name, a] = best, h = S.hubs[name];
+  tooltip.innerHTML = `<b>${name}</b> · ${a.kind}` + (h ? `<br>${AED_LABEL[h.aed] || h.aed}${h.down ? " · down" : ""}` : "") +
+    (a.committed ? `<br>committed to ${a.committed}` : "") + (a.witnessing ? "<br>witnessed a collapse" : "");
+  tooltip.style.display = "block";
+  tooltip.style.left = `${ev.clientX - r.left + 14}px`; tooltip.style.top = `${ev.clientY - r.top + 14}px`;
+});
+canvas.addEventListener("mouseleave", () => tooltip.style.display = "none");
+
+// ---------- loop & controls ----------
+function frame(now) {
+  const dt = (now - lastFrame) / 1000; lastFrame = now;
+  if (mode === "live") {
+    const last = events.length ? events[events.length - 1].t : 0;
+    if (liveAnchor) simT = Math.min(last + 5, liveAnchor.t + (now - liveAnchor.real) / 1000 * factor);
+    simT = Math.max(simT, last);
+  } else if (playing) {
+    simT = Math.min(duration, simT + dt * speed);
+  }
+  advanceTo(simT);
+  draw(now);
+  if (now - lastPanel > 250) { panel(); lastPanel = now; }
+  document.getElementById("clock").textContent = `t = ${fmt(simT)}`;
+  if (mode !== "live") document.getElementById("scrub").value = simT;
+  requestAnimationFrame(frame);
+}
+document.getElementById("play").onclick = () => { playing = !playing; document.getElementById("play").textContent = playing ? "Pause" : "Play"; };
+document.getElementById("speed").onchange = e => speed = +e.target.value;
+document.getElementById("scrub").oninput = e => { simT = +e.target.value; };
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement, dark = root.dataset.theme ? root.dataset.theme === "dark"
+    : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.dataset.theme = dark ? "light" : "dark"; cellsImage = null;
+};
+
+S = freshState();
+const params = new URLSearchParams(location.search);       // e.g. ?t=1300&speed=60&paused
+if (params.has("t")) simT = +params.get("t");
+if (params.has("speed")) { speed = +params.get("speed"); document.getElementById("speed").value = String(speed); }
+if (params.has("paused")) { playing = false; document.getElementById("play").textContent = "Play"; }
+const ws = new WebSocket(`ws://${location.host}/ws`);
+ws.onmessage = msg => {
+  const data = JSON.parse(msg.data);
+  if (data.type === "hello") {
+    mode = data.mode; document.getElementById("title").textContent = data.title || "";
+    const badge = document.getElementById("mode"); badge.textContent = mode.toUpperCase();
+    badge.classList.toggle("live", mode === "live");
+    events = data.events;
+    if (mode === "live") { liveAnchor = { t: events.length ? events[events.length - 1].t : 0, real: performance.now() };
+      document.getElementById("play").disabled = true; document.getElementById("scrub").disabled = true; }
+  } else if (data.type === "events") {
+    events.push(...data.events);
+    liveAnchor = { t: events[events.length - 1].t, real: performance.now() };
+  }
+  advanceTo(simT); panel(); lastPanel = performance.now();       // show the state as soon as data arrives
+};
+ws.onclose = () => { document.getElementById("mode").textContent = mode === "live" ? "RUN ENDED" : mode.toUpperCase(); };
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

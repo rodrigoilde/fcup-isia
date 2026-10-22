@@ -1,0 +1,36 @@
+# C4 — Degraded periphery (analysis §8.2).
+# Half the volunteers, half the AED cabinets locked at night, intermittent network, distant ambulances, and a
+# hub that crashes while it coordinates a case.
+# Questions: do offline guidance and re-allocation hold the times? How much does recovering a coordinator cost (M12)?
+
+[run]
+name = "c4_periphery"
+
+[population]
+volunteers = 15
+ems_bases = [[-1500, 1500], [4500, 1500]]   # stations outside the area
+
+[ems]
+dispatch_delay_s = 300
+
+[aed]
+p_closed = 0.5
+
+[network]
+loss = 0.05
+outages = [{ cell = 5, from_s = 600, to_s = 1500 }, { cell = 7, from_s = 1800, to_s = 2700 }]
+
+[faults]
+hub_crashes = [{ hub = 2, at_s = 1200 }]
+
+# A P1 in the cell of hub 2 shortly before it crashes, so a case is in progress when it fails.
+# Both a wearable and a witness who reports, so that detection does not depend on one random draw.
+[[scripted.incidents]]
+id = "F1"
+t_s = 900
+priority = "P1"
+shockable = true
+wearer = true
+witness = true
+witness_reports = true
+cell = 2

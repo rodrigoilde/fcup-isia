@@ -1,0 +1,16 @@
+# C2 — Noise and false alarms (analysis §8.2).
+# Sensor false positives x5, some drifting sensors, citizens who misread scenes, less reliable observation.
+# Questions: do corroboration and reputation keep precision with little extra delay? AlertFirst or ConfirmFirst?
+# Variants: --set sensors.policy=alert_first | confirm_first; --set policy.reputation=false; --set policy.allocation=naive
+
+[run]
+name = "c2_noise"
+
+[sensors]
+fp_per_device_hour = 0.1          # x5 the base rate
+drifting_devices = 4              # F3
+drift_fp_per_hour = 1.0
+
+[witness]
+false_report_per_hour = 0.1       # F4: per bystander, ~1.5 misread scenes per hour in the city
+observation_error = 0.2

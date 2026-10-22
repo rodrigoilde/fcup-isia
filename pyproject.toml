@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cemr"
+version = "0.1.0"
+description = "Decentralised Community Emergency Medical Response — SPADE multi-agent system (ISIA 2026/27, topic O)"
+readme = "README.md"
+requires-python = ">=3.10,<3.15"
+dependencies = [
+    "spade==4.1.4",
+    "greenlet",  # needed by SQLAlchemy asyncio inside pyjabber (SPADE's embedded XMPP server)
+    "numpy",
+    "pandas",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: end-to-end SPADE runs (~40 s); deselect with -m \"not slow\""]

@@ -1,0 +1,18 @@
+# C1 — Base urban scenario (analysis §8.2).
+# Average density of volunteers and AEDs, reliable sensors, good network, isolated incidents.
+# Question: does the end-to-end flow work, and in how many P1 cases does a volunteer arrive before EMS?
+
+[run]
+name = "c1_urban"
+
+[incidents]
+rate_per_hour = 3.0
+
+# One known P1 case at t = 60 s, used by the smoke test: the patient wears a device and a bystander sees it.
+[[scripted.incidents]]
+id = "S1"
+t_s = 60
+priority = "P1"
+shockable = true
+wearer = true
+witness = true

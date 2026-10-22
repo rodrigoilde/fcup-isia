@@ -1,0 +1,11 @@
+# C3 — Surge with contention (analysis §8.2).
+# A concert lets out: eight incidents in ten minutes within 400 m, competing for volunteers, AEDs and ambulances.
+# Questions: do exclusivity (OS2, OS3) and priority rules avoid conflicts? How much redundancy pays off?
+# Variants: --set dispatch.redundancy.P1.GO_TO_PATIENT=1 | 2 | 3
+
+[run]
+name = "c3_surge"
+
+[incidents]
+rate_per_hour = 2.0
+surge = { t_s = 900, duration_s = 600, count = 8, centre = [1500, 1500], radius_m = 400, p_witness = 0.9, priority_mix = { P1 = 0.6, P2 = 0.4 } }

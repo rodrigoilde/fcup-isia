@@ -1,0 +1,180 @@
+# Default parameters shared by every scenario. A scenario file overrides any key it repeats.
+# Units: simulated seconds, metres, metres per second.
+# Sources: Gaia analysis §8.3 (initial values) and docs/02-architectural-design.md (decisions D1–D8).
+
+[run]
+name = "defaults"
+duration_s = 3600
+clock_factor = 10                 # spikes/README.md: real delays distort sim time by <= ~0.3 s
+seed = 1
+start_batch = 10                  # agents started concurrently (pyjabber drops login bursts)
+start_retries = 4
+
+[city]                            # A1: grid city, Manhattan travel
+size_m = 3000
+grid_spacing_m = 100
+
+[population]                      # analysis §8.3 "Dimensão"
+devices = 40                      # citizen sensor devices (SensorMonitor)
+bystanders = 15                   # potential witnesses (WitnessReporter / OnSceneHelper)
+volunteers = 30                   # VolunteerResponder / AEDRunner
+aeds = 10                         # AED cabinets = cell hubs (D1)
+aed_min_distance_m = 600
+ems_bases = [[600, 600], [2400, 600], [600, 2400], [2400, 2400]]
+
+[incidents]                       # analysis §4.3: Poisson arrivals, P1/P2/P3 mix
+rate_per_hour = 3.0
+priority_mix = { P1 = 0.5, P2 = 0.3, P3 = 0.2 }
+p1_shockable = 0.4                # fraction of P1 with a shockable rhythm
+p_wearer = 0.5                    # patient wears one of the citizen devices
+p_witness = 0.6                   # a bystander sees the collapse (A5)
+witness_busy_s = 1800             # a bystander witnesses at most one incident per 30 min
+surge = {}                        # C3: { t_s, duration_s, count, centre = [x, y], radius_m, p_witness }
+
+[sensors]                         # A2
+tpr = 0.9                         # probability that a real collapse of a wearer is detected
+fp_per_device_hour = 0.02         # false positive events per device per hour
+detection_delay_s = [10, 20]      # fall + immobility take time to recognise
+p_cardiac_flag_on_fp = 0.3        # false positives that also show an anomalous cardiac signal
+policy = "adaptive"               # adaptive (AlertFirst only for P1-like signals) | alert_first | confirm_first
+drifting_devices = 0              # F3: devices whose sensors drift (C2)
+drift_fp_per_hour = 1.0
+drift_p_cardiac_flag = 0.6
+
+[wearer]
+prompt_countdown_s = 30           # "Are you OK?" countdown (analysis §8.3: 30–60 s)
+p_respond_if_able = 0.9           # a conscious wearer answers the prompt
+response_delay_s = [3, 25]
+
+[witness]                         # A5
+p_report = 0.8
+report_delay_s = [20, 60]
+p_answer = 0.95                   # answers each triage question
+answer_delay_s = [3, 10]
+observation_error = 0.1           # probability of misreading "responsive" / "breathing normally"
+p_called_112 = 0.5
+react_delay_s = [3, 8]            # OnSceneHelper: time to start each instruction
+p_give_up = 0.03                  # per instruction
+p_give_up_per_cycle = 0.03        # extra per compression cycle after the second (fatigue)
+tired_after_cycles = 3            # reports TIRED from the third two-minute cycle on
+t_silence_s = 20                  # T_silence: guide repeats, then reports WITNESS_SILENT
+false_report_per_hour = 0.0       # F4: a citizen misreads a scene (someone asleep looks unconscious) (C2)
+
+[volunteers]                      # A6
+p_accept = 0.7
+eval_delay_s = [3, 8]             # reading the alert and deciding
+modes = { foot = 0.6, bike = 0.2, car = 0.2 }
+qualification_mix = { BLS = 0.3, BLS_AED = 0.6, HEALTH_PRO = 0.1 }
+max_alerts_per_hour = 6           # OS8 A_max
+max_consecutive_awards = 3        # OS8 K_max
+aed_retrieval_s = 30              # unlocking and taking the AED out of the cabinet
+p_no_show = 0.05                  # awarded but never arrives: half withdraw on the way, half go silent
+speed_variability = [1.0, 1.3]    # real travel time / estimated travel time
+max_on_scene_s = 1800             # give up a mission whose release was lost (F5)
+
+[travel]
+foot = { speed = 2.0, overhead_s = 0 }
+bike = { speed = 4.5, overhead_s = 20 }
+car = { speed = 8.0, overhead_s = 60 }
+ambulance = { speed = 8.3, overhead_s = 0 }   # ~30 km/h average in urban traffic
+
+[ems]
+# Call handling + crew activation before the unit moves. With 30 km/h this gives a median response of
+# about 7 min in C1, the order of magnitude usually reported for urban EMS. TODO: confirm against a source
+# (e.g. INEM response-time data) before the report.
+dispatch_delay_s = 240
+care_on_scene_s = 180
+transport_s = 600                 # until the unit is available again
+
+[aed]
+restock_s = 1800                  # a used AED is out of service until checked and restocked
+reservation_valid_s = 900         # T_code
+p_faulty = 0.0                    # probability that a cabinet's AED is missing or broken
+p_closed = 0.0                    # probability that a cabinet is locked (outside opening hours, C4)
+
+[network]                         # A3: injected by NetworkModel (SPADE does not use XMPP in-process)
+latency_median_s = 0.3
+latency_sigma = 0.5               # log-normal spread
+latency_max_s = 5.0
+loss = 0.0
+outages = []                      # [[network.outages]] cell = 3, from_s = 600, to_s = 1200
+
+[verification]                    # D5
+# Calibration (log-odds, sources at prior trust; device confidence = quality x 0.95 / 0.8 / 0.5):
+#   P1 device alert (conf ~0.8) + wearer silent:  logit(.15) + .8 ln3 + ln10 = 1.45 -> p = .81 >= .60
+#   P2 device alert (conf ~0.68) + wearer silent:                            1.32 -> p = .79 >= .75
+#   any device alert + wearer answers "I'm fine":                           -3.8  -> p = .02  (discard)
+#   witness report (conf .8) + triage "no response, not breathing":          2.0  -> p = .88 >= .60
+prior = 0.15                      # P(real incident | a candidate is opened)
+tau_declare = { P1 = 0.6, P2 = 0.75, P3 = 0.85 }
+# The analysis proposed W_max = 30/60/120 s. P1 and P2 are raised above the wearer countdown,
+# otherwise the third branch of OS4 (automatic alert + no answer from the wearer) could never complete.
+w_max_s = { P1 = 45, P2 = 75, P3 = 120 }
+discard_below = 0.03              # discard early once the belief falls below this
+retract_below = 0.3               # P07: a declared case whose belief falls below this is retracted
+corroboration_deadline_s = 10
+alert_ack_timeout_s = 10          # without an AlertAck, the source tries the hub's successor (F6)
+retry_after_s = 20                # F5: resend an unacknowledged request after this long
+max_retries = 2
+triage_deadline_s = 12              # witnesses answer in 3-10 s; leaves room for a retry inside W_max
+merge_window_s = 90
+trust_prior = 0.5
+human_reliable_min_trust = 0.4    # a witness at or above this trust counts as a "reliable human" (OS4)
+
+[verification.likelihood_ratio]   # LR of each evidence type; scaled by the source's confidence
+sensor_alert = 3.0
+wearer_no_response = 10.0
+wearer_ok = 0.05
+witness_report = 6.0
+witness_retracts = 0.2
+corroboration_confirm = 5.0
+corroboration_deny = 0.3
+triage_p1 = 10.0                  # "does not respond and does not breathe normally"
+triage_p2 = 6.0                   # "does not respond but breathes"
+
+[dispatch]                        # D4
+proposal_deadline_s = 12          # P08 (analysis §8.3: 10–15 s)
+ambulance_deadline_s = 8          # P10
+location_wait_s = 10              # extra wait for the P24 disclosure before awarding
+reservation_timeout_s = 5
+n_max = 4                         # N_max: responders awarded per case
+n_need = { P1 = 2, P2 = 1 }       # N_need(p): rescuers on scene after which those still on the way are released (OL8)
+eta_slack_s = 120                 # δ in "ETA + δ"
+quality_penalty = 0.5             # ETA multiplier for offers below the needed qualification
+trust_exponent = 1.0
+ambulance_retry_s = 30
+case_timeout_s = 3600
+candidate_aeds = 3                # AEDs offered in a FETCH_AED call
+
+[dispatch.redundancy]             # tasks per priority (analysis §8.3: P1 = 2 CPR + 1 AED)
+P1 = { GO_TO_PATIENT = 2, FETCH_AED = 1 }
+P2 = { GO_TO_PATIENT = 1 }
+P3 = {}
+
+[reputation]                      # D6
+peer_discount = 0.5               # d: weight of a neighbouring hub's counts (hubs trust each other at the prior)
+gossip_period_s = 600             # P23 ShareReputation
+decay_period_s = 600              # _DecayTrust
+decay_factor = 0.98               # counts kept per period (~11 % lost per hour)
+
+[failover]                        # D8
+heartbeat_s = 5                   # P27 heartbeat period
+lease_heartbeats = 3              # lease L = 3 heartbeats
+takeover_margin_heartbeats = 1    # successor waits L + 1 heartbeat before taking over
+
+[faults]                          # fault injection (scenarios C4, robustness M12)
+hub_crashes = []                  # [[faults.hub_crashes]] hub = 3, at_s = 900
+
+[privacy]                         # D7, OS11
+retention_s = 600                 # T_ret: personal data purged at most this long after CloseCase
+max_retention_s = 7200            # fallback purge if the closure never reaches the guardian
+
+[registration]                    # D3: register with hubs up to this ring distance
+ring = { volunteer = 2, witness = 1, sensor = 1 }
+
+[policy]                          # variation points (docs/02 §9)
+allocation = "contract_net"       # contract_net | naive (baseline B1)
+reputation = true
+
+[scripted]                        # incidents injected at fixed times, on top of the Poisson process
+incidents = []                    # [[scripted.incidents]] t_s, priority, shockable, wearer, witness
