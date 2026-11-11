@@ -30,6 +30,8 @@ pytest -m "not slow"   # unit tests (< 1 s)
 pytest                 # plus two end-to-end SPADE runs (~1.5 min)
 ```
 
+On Windows: `py -3.13 -m venv .venv`, then `.venv\Scripts\activate` (tested with Python 3.13).
+
 `greenlet` is listed explicitly because the embedded XMPP server (pyjabber → SQLAlchemy asyncio) needs
 it and `pip install spade` does not pull it in.
 
@@ -49,7 +51,8 @@ python -m cemr.run --scenario c1 --set policy.allocation=naive             # bas
 | `--duration`, `--factor` | Simulated seconds; clock acceleration (default 10×) |
 | `--set key=value` | Override any parameter, e.g. `--set dispatch.redundancy.P1.GO_TO_PATIENT=3` |
 | `--viz PORT` | Serve the live dashboard (use a slow clock, e.g. `--factor 5`) |
-| `--external` | Use a running `spade run --host localhost --memory` instead of the embedded server |
+| `--xmpp-port PORT` | Start a private in-process XMPP server on `PORT` (and `PORT+1`); used for parallel runs |
+| `--external` | Use a running `spade run --host localhost --memory` instead of the embedded server (macOS/Linux) |
 
 | Scenario | What changes | Question |
 |---|---|---|
@@ -69,7 +72,7 @@ Each run writes `runs/<scenario>-s<seed>-<time>/`:
 
 **Validity.** A run is invalid (exit code 3) if the simulated clock did not advance as intended, e.g.
 because the laptop slept: closing the lid suspends the process. For long runs, plug in the charger and
-use `caffeinate -i`.
+keep the lid open. On macOS use `caffeinate -i`; on Windows `run_matrix.py` keeps the machine awake itself.
 
 ## Checking the organisational rules
 
@@ -93,11 +96,11 @@ This re-derives the rules of the Gaia analysis from the audit log:
 ## Experiments
 
 ```bash
-caffeinate -i python experiments/run_matrix.py --matrix main --seeds 1-5 --workers 4    # ~1h40
+python experiments/run_matrix.py --matrix main --seeds 1-5 --workers 4    # ~1h45 (macOS: prefix caffeinate -i)
 python experiments/analyse.py
 ```
 
-`run_matrix.py` runs 13 configurations × seeds in parallel against one shared XMPP server, skipping
+`run_matrix.py` runs 13 configurations × seeds in parallel, each run with its own XMPP server, skipping
 runs that are already valid. The configurations are:
 
 - C1–C4, each with the system as designed and with baseline B1;
@@ -132,8 +135,12 @@ Open `?t=1200&speed=60` to start a replay at a given time.
 
 - **Single run:** the embedded server (`spade.run(..., embedded_xmpp_server=True)`) is used. Nothing
   else is needed.
-- **Parallel runs:** one shared server, `spade run --host localhost --memory`. `--host localhost` is
-  required: with the default domain, messages to `agent@localhost` are silently dropped.
+- **Parallel runs:** each run starts a private in-process server on its own port (`--xmpp-port`), so
+  runs share nothing. A shared `spade run` server is not used any more: on Windows it never completes a
+  registration (pyjabber hashes passwords in a process pool whose *spawned* workers re-run `spade run`'s
+  entry point and crash), and even a fixed shared server logs 4 × 100 agents in very slowly.
+- **`--external`** still works with `spade run --host localhost --memory` on macOS/Linux. `--host localhost`
+  is required: with the default domain, messages to `agent@localhost` are silently dropped.
 - **Security:** the server also listens on the LAN address and agents auto-register with trivial
   passwords, so use it only on trusted networks. The dashboard listens on 127.0.0.1 only.
 

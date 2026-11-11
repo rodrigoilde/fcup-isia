@@ -21,6 +21,7 @@ class SimContext:
     directory: Directory
     seed: int
     password: str = "cemr-sim"
+    xmpp_port: int = 5222
 
     def rng_for(self, name: str) -> random.Random:
         """Per-agent random stream: same seed and name give the same sequence (string seeds are stable)."""

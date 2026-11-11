@@ -1,6 +1,11 @@
-"""Run the experiment matrix: scenarios x variants x seeds, in parallel, against one shared XMPP server.
+"""Run the experiment matrix: scenarios x variants x seeds, in parallel, each run with its own XMPP server.
 
-    caffeinate -i python experiments/run_matrix.py --matrix main --seeds 1-5 --workers 4
+    python experiments/run_matrix.py --matrix main --seeds 1-5 --workers 4            # Windows/Linux
+    caffeinate -i python experiments/run_matrix.py --matrix main --seeds 1-5 --workers 4   # macOS
+
+Every run starts a private in-process pyjabber server on its worker slot's port (`cemr.run --xmpp-port`).
+One shared server (`spade run`) is very slow to log 4 x 100 agents in on Windows, and private servers
+also keep parallel runs fully independent. On Windows the script itself keeps the machine awake.
 
 Each run goes to runs/matrix/<scenario>-<variant>-s<seed>/; results/runs.csv gets one row per run with
 the flattened summary (metrics, validity, rule violations). Re-running skips runs that already have a
@@ -51,7 +56,7 @@ def flatten(data: dict, prefix: str = "") -> dict:
     return out
 
 
-def run_one(scenario: str, variant: str, overrides: dict, seed: int, args) -> dict:
+def run_one(scenario: str, variant: str, overrides: dict, seed: int, args, port: int) -> dict:
     out = RUNS / f"{scenario}-{variant}-s{seed}"
     summary_file = out / "summary.json"
     if summary_file.exists() and not args.force:
@@ -59,7 +64,8 @@ def run_one(scenario: str, variant: str, overrides: dict, seed: int, args) -> di
         if previous.get("valid"):
             return {"scenario": scenario, "variant": variant, "seed": seed, "exit": 0, "skipped": True,
                     **flatten(previous)}
-    cmd = [sys.executable, "-m", "cemr.run", "--scenario", scenario, "--seed", str(seed), "--external", "--quiet",
+    cmd = [sys.executable, "-m", "cemr.run", "--scenario", scenario, "--seed", str(seed), "--xmpp-port", str(port),
+           "--quiet",
            "--out", str(out), "--prefix", f"{scenario}{variant}s{seed}".replace("_", "")]
     if args.duration:
         cmd += ["--duration", str(args.duration)]
@@ -76,7 +82,7 @@ def run_one(scenario: str, variant: str, overrides: dict, seed: int, args) -> di
     else:
         row["valid"] = False
         (out / "stderr.txt").parent.mkdir(parents=True, exist_ok=True)
-        (out / "stderr.txt").write_text(proc.stderr)
+        (out / "stderr.txt").write_text(proc.stderr, encoding="utf-8")
     return row
 
 
@@ -86,12 +92,24 @@ def write_rows(rows: list[dict]) -> Path:
     columns = []
     for row in rows:
         columns += [c for c in row if c not in columns]
-    with path.open("w", newline="") as fh:
+    with path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=columns)
         writer.writeheader()
         for row in sorted(rows, key=lambda r: (r["scenario"], r["variant"], r["seed"])):
             writer.writerow(row)
     return path
+
+
+def keep_awake() -> None:
+    """Windows: stop the machine from sleeping while this process lives (the `caffeinate -i` of macOS).
+
+    Closing the lid can still suspend a laptop, depending on the power settings; such runs are marked
+    invalid and redone on the next invocation.
+    """
+    if sys.platform == "win32":
+        import ctypes
+        ES_CONTINUOUS, ES_SYSTEM_REQUIRED = 0x80000000, 0x00000001
+        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
 
 
 def parse_seeds(text: str) -> list[int]:
@@ -110,28 +128,27 @@ def main() -> int:
     parser.add_argument("--factor", type=float, help="override the clock factor")
     parser.add_argument("--only", help="comma-separated scenarios to run, e.g. c1,c3")
     parser.add_argument("--force", action="store_true", help="redo runs that already have a valid summary")
+    parser.add_argument("--base-port", type=int, default=15222,
+                        help="first private XMPP port; job i uses base + 2i and base + 2i + 1")
     args = parser.parse_args()
 
     jobs = [(sc, var, ov, seed) for sc, var, ov in MATRICES[args.matrix] for seed in parse_seeds(args.seeds)
             if not args.only or sc in args.only.split(",")]
-    server = subprocess.Popen([str(Path(sys.executable).with_name("spade")), "run", "--host", "localhost",
-                               "--memory"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=ROOT)
-    time.sleep(4)
+    keep_awake()
     rows = []
     print(f"{len(jobs)} runs, {args.workers} in parallel")
-    try:
-        with ThreadPoolExecutor(max_workers=args.workers) as pool:
-            futures = {pool.submit(run_one, sc, var, ov, seed, args): (sc, var, seed) for sc, var, ov, seed in jobs}
-            for n, future in enumerate(as_completed(futures), start=1):
-                row = future.result()
-                rows.append(row)
-                write_rows(rows)
-                status = "skipped" if row.get("skipped") else ("ok" if row.get("valid") and row["exit"] == 0
-                                                              else f"PROBLEM exit={row['exit']}")
-                print(f"[{n}/{len(jobs)}] {row['scenario']}-{row['variant']}-s{row['seed']}: {status}"
-                      f" rules={row.get('rules.violations')} errors={row.get('errors')}", flush=True)
-    finally:
-        server.terminate()
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        # Each job gets its own XMPP port pair, so no run ever binds a port a previous run just released.
+        futures = {pool.submit(run_one, sc, var, ov, seed, args, args.base_port + 2 * i): (sc, var, seed)
+                   for i, (sc, var, ov, seed) in enumerate(jobs)}
+        for n, future in enumerate(as_completed(futures), start=1):
+            row = future.result()
+            rows.append(row)
+            write_rows(rows)
+            status = "skipped" if row.get("skipped") else ("ok" if row.get("valid") and row["exit"] == 0
+                                                          else f"PROBLEM exit={row['exit']}")
+            print(f"[{n}/{len(jobs)}] {row['scenario']}-{row['variant']}-s{row['seed']}: {status}"
+                  f" rules={row.get('rules.violations')} errors={row.get('errors')}", flush=True)
     path = write_rows(rows)
     bad = [r for r in rows if not r.get("valid") or r["exit"] not in (0,)]
     print(f"results: {path} ({len(rows)} runs, {len(bad)} invalid or failed)")

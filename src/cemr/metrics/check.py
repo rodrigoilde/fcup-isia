@@ -97,11 +97,13 @@ def check(events: list[dict], cfg: dict) -> dict[str, list[str]]:
     awarded = defaultdict(set)
     for e in by_kind["award"]:
         awarded[e["case"]].add(e["responder"])
-    ems_of = {e["case"]: e["unit"] for e in by_kind["ems_award"]}
+    ems_of = defaultdict(set)                     # every unit awarded the case (re-awarded if one is busy)
+    for e in by_kind["ems_award"]:
+        ems_of[e["case"]].add(e["unit"])
     for m in msgs:
         if m["msg_type"] == "Award" and m["dst"] not in awarded.get(m["thread"], set()):
             v["OS5"].append(f"location sent to non-awardee {m['dst']} in {m['thread']}")
-        if m["msg_type"] == "AmbulanceAward" and m["dst"] != ems_of.get(m["thread"]):
+        if m["msg_type"] == "AmbulanceAward" and m["dst"] not in ems_of.get(m["thread"], set()):
             v["OS5"].append(f"location sent to {m['dst']}, not the case's EMS, in {m['thread']}")
         if m["msg_type"] == "Disclosure" and not m["dst"].startswith(("hub", "ems")):
             v["OS5"].append(f"disclosure to {m['dst']} in {m['thread']}")
@@ -193,7 +195,10 @@ def check(events: list[dict], cfg: dict) -> dict[str, list[str]]:
     # --- OL6: re-recruitment after a failure or delay ------------------------------------------------
     followups = defaultdict(list)
     for e in events:
-        if e["kind"] in ("award", "recruit", "responders_called", "case_closed", "release") and "case" in e:
+        # recruit_skipped: the hub logged why it did not re-recruit (task still covered, a call already
+        # running, or nobody left to call in ring 2); OL6 asks for re-recruitment only when it is possible.
+        if e["kind"] in ("award", "recruit", "responders_called", "case_closed", "release",
+                         "recruit_skipped") and "case" in e:
             followups[e["case"]].append(e["t"])
     took_over = {e["case"]: e["t"] for e in by_kind["status"] if e.get("status") == "EMS_TOOK_OVER"}
     for e in by_kind["award_failed"] + by_kind["award_at_risk"]:

@@ -41,7 +41,7 @@ from .sim.network import NetworkModel
 from .sim.world import World
 
 
-def build(cfg: dict, out_dir: Path, prefix: str):
+def build(cfg: dict, out_dir: Path, prefix: str, xmpp_port: int = 5222):
     run = cfg["run"]
     seed = run["seed"]
     clock = SimClock(run["clock_factor"])
@@ -52,7 +52,7 @@ def build(cfg: dict, out_dir: Path, prefix: str):
     world = World(cfg, grid, layout, clock, log)
     net = NetworkModel(cfg, random.Random(f"{seed}/network"), clock, world)
     directory = Directory(prefix, hubs=layout.hub_positions, ems_units=len(layout.ems_bases))
-    ctx = SimContext(cfg, clock, world, net, log, directory, seed)
+    ctx = SimContext(cfg, clock, world, net, log, directory, seed, xmpp_port=xmpp_port)
     agents = [AEDHubAgent(h, ctx) for h in sorted(layout.hub_positions)]          # hubs first: others register
     agents += [EMSAgent(i, ctx, base) for i, base in enumerate(layout.ems_bases)]
     agents += [VolunteerAgent(i, ctx, p) for i, p in enumerate(layout.volunteers)]
@@ -61,8 +61,9 @@ def build(cfg: dict, out_dir: Path, prefix: str):
     return ctx, layout, grid, trace, agents
 
 
-async def simulate(cfg: dict, out_dir: Path, prefix: str, quiet: bool = False, viz_port: int | None = None) -> dict:
-    ctx, layout, grid, trace, agents = build(cfg, out_dir, prefix)
+async def simulate(cfg: dict, out_dir: Path, prefix: str, quiet: bool = False, viz_port: int | None = None,
+                   xmpp_port: int = 5222) -> dict:
+    ctx, layout, grid, trace, agents = build(cfg, out_dir, prefix, xmpp_port)
     run = cfg["run"]
     viz = None
     if viz_port:                                   # live dashboard: subscribe before any agent logs anything
@@ -128,6 +129,26 @@ async def crash_hub(ctx: SimContext, agents: list, hub_id: int, at_s: float) -> 
     await agent.stop()
 
 
+async def start_private_server(port: int):
+    """An in-process pyjabber server on `port` (s2s on port + 1), so parallel runs share nothing.
+
+    This is how the matrix runs in parallel on Windows, where one shared server (`spade run`) is very
+    slow to log 4 x 100 agents in. The HTTP upload plugin is left out: its admin page always binds
+    port 9090, which parallel servers would fight over.
+    """
+    import loguru
+    from pyjabber.server import Server
+    from pyjabber.server_parameters import Parameters
+
+    loguru.logger.remove()                                            # silent, like the embedded server
+    plugins = [p for p in Parameters().plugins if p != "urn:xmpp:http:upload:0"]
+    server = Server(Parameters(host="localhost", client_port=port, server_port=port + 1,
+                               database_in_memory=True, plugins=plugins))
+    task = asyncio.create_task(server.start())
+    await asyncio.wait_for(server.ready.wait(), 30)
+    return task
+
+
 def validity(run: dict, reached: float, wall_s: float, mono_s: float, max_stall_s: float) -> dict:
     """A run is valid only if simulated time really advanced as intended.
 
@@ -155,6 +176,8 @@ def parse_args(argv=None):
     parser.add_argument("--out", type=Path, help="output directory")
     parser.add_argument("--prefix", help="JID prefix (unique per parallel run)")
     parser.add_argument("--external", action="store_true", help="use a running `spade run --host localhost`")
+    parser.add_argument("--xmpp-port", type=int, metavar="PORT",
+                        help="run a private XMPP server on PORT (and PORT+1) for this run; for parallel runs")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                         help="override a parameter, e.g. --set sensors.policy=alert_first (repeatable)")
     parser.add_argument("--viz", type=int, metavar="PORT", help="serve the live dashboard on this port")
@@ -197,14 +220,20 @@ def main(argv=None) -> int:
     result: dict = {}
 
     async def runner():
+        server = None
         try:
-            result["summary"] = await simulate(cfg, out_dir, prefix, args.quiet, args.viz)
+            if args.xmpp_port:
+                server = await start_private_server(args.xmpp_port)
+            result["summary"] = await simulate(cfg, out_dir, prefix, args.quiet, args.viz, args.xmpp_port or 5222)
         except Exception as exc:  # noqa: BLE001 - spade.run swallows exceptions, so report them here
             import traceback
             traceback.print_exc()
             result["error"] = exc
+        finally:
+            if server is not None:
+                server.cancel()
 
-    spade.run(runner(), embedded_xmpp_server=not args.external)
+    spade.run(runner(), embedded_xmpp_server=not (args.external or args.xmpp_port))
     if "error" in result or "summary" not in result:
         return 1
     summary = result["summary"]
