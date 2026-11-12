@@ -379,7 +379,10 @@ The scale spike ([spikes/README.md](../spikes/README.md)) fixed five constraints
   message delays add at most ~0.3 simulated seconds.
 - **Staggered start.** Agents start in batches with retry, because the XMPP server drops connections
   during login bursts.
-- **External server for parallel runs**, started with `spade run --host localhost --memory`.
+- **A private server per run for parallel runs.** The spike used one shared external server
+  (`spade run --host localhost --memory`). In sprint 3 this was replaced by a private in-process server
+  per run, on its own port (`--xmpp-port`), because on Windows the shared server never completed a
+  registration. Runs now share nothing.
 - **No XMPP presence** for discovery or availability (D3).
 
 ## 9. Variation points kept open for evaluation

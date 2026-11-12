@@ -29,8 +29,9 @@ Raw summaries are written to `spikes/out/*.json`, which is not versioned.
    receiver when both agents are registered in the same process (`spade/container.py`, `Container.send`).
    XMPP is only used for login, and for messages between processes.
    → All network effects (latency, loss, cells without coverage; assumption A3) must come from our own
-   `NetworkModel`, applied in a single `send_with_faults()` in the base agent class. The docs must state
-   that, inside one simulation process, XMPP carries no messages.
+   `NetworkModel`, applied on the single send path of the base agent class (`send_to()` in
+   `src/cemr/agents/base.py`). The docs must state that, inside one simulation process, XMPP carries no
+   messages.
 3. **`spade run` must be started with `--host localhost`.** Its default domain is `0.0.0.0`. With that
    domain, pyjabber treats `agent@localhost` as a *remote* domain and opens a server-to-server
    connection to itself, where the message is silently dropped. The embedded server
@@ -39,7 +40,8 @@ Raw summaries are written to `spikes/out/*.json`, which is not versioned.
    process fail with `DisconnectedException`.
    → Start agents in **batches of 10, retrying with exponential backoff**. `Agent.start()` is safe to
    retry, because it builds a new `XMPPClient` each time and `setup()` runs only after a successful
-   login. This took start failures to zero. This helper moves into `cemr` in sprint 1.
+   login. This took start failures to zero. The helper now lives in `src/cemr/sim/context.py`
+   (`start_agents`).
 5. **Clock acceleration factor: 10×.** A real delay *L* appears as *L × factor* simulated seconds.
    - At 10×, the worst p99 one-way delay observed (~30 ms, four parallel runs) distorts time by about
      0.3 simulated seconds. The shortest protocol deadline is 10 s (P08 proposals; analysis §8.3).
@@ -50,6 +52,10 @@ Raw summaries are written to `spikes/out/*.json`, which is not versioned.
 6. **Parallel experiments** use a single external server, started with
    `spade run --host localhost --memory`. Each run gets its own JID prefix, and each process holds one
    complete simulation.
+   *Superseded in sprint 3:* on Windows the shared server never completed a registration, and even when
+   it worked it logged 4 × 100 agents in very slowly. Each run now starts its own private in-process
+   server on its own port (`python -m cemr.run --xmpp-port PORT`); see "XMPP server" in the main
+   [README](../README.md).
 7. **Dependency fix.** pyjabber's SQLAlchemy asyncio layer needs `greenlet`, which `pip install spade`
    did not pull in. It is now listed in `pyproject.toml` and `requirements.txt`.
 8. **Security note.** Even with `--host localhost`, pyjabber also listens on the machine's LAN address
