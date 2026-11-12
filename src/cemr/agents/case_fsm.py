@@ -109,7 +109,8 @@ class CaseRecord:
     retracted: bool = False
     human_false_alarm: bool = False
     silent_reinforced: bool = False
-    recruit_exhausted: bool = False                         # nobody left to call
+    recruit_exhausted: bool = False                         # nobody left to call (reset when an award fails)
+    unaudited_failures: list = field(default_factory=list)  # failed awards not yet followed up (OL6)
     triage_retry_at: dict = field(default_factory=dict)     # witness -> when to re-ask unanswered questions (F5)
     triage_retries: dict = field(default_factory=dict)
     triage_rechecked: set = field(default_factory=set)      # witnesses re-asked after an incoherent triage (F4)
@@ -402,6 +403,8 @@ class CaseFSM(Conversation):
                     case.failed_aeds.add(info.aed_id)
                     case.reservation = None
                 self.log("award_failed", responder=inc.sender, task=info.task, reason=report.status)
+                case.recruit_exhausted = False         # OL6: volunteers may have become free since the last call
+                case.unaudited_failures.append(inc.sender)
                 await self.replicate()
             return
         if inc.sender in case.guides and report.status == ResponderStatus.WITNESS_SILENT:
@@ -608,6 +611,8 @@ class CaseFSM(Conversation):
             return
         info.status = "failed"
         self.log("award_failed", responder=volunteer, task=info.task, reason="busy")
+        self.case.recruit_exhausted = False
+        self.case.unaudited_failures.append(volunteer)
         if self.naive:
             await self.award_in_arrival_order()
         else:
@@ -635,11 +640,14 @@ class CaseFSM(Conversation):
                 case.call_deadline = await self.call_responders(2, missing)
                 case.recruit_exhausted = case.call_deadline is None
                 self.log("recruit", tasks={str(t): n for t, n in missing.items()}, exhausted=case.recruit_exhausted)
+                case.unaudited_failures = []
                 return
-        if newly_late:                     # OL6 audit trail: why a late award led to no new recruitment
+        unaudited = newly_late + case.unaudited_failures
+        case.unaudited_failures = []
+        if unaudited:                      # OL6 audit trail: why a failed/late award led to no new recruitment
             reason = ("covered" if not missing else "call_in_progress" if case.call_deadline is not None
                       else "no_location" if case.location is None else "pool_exhausted")
-            self.log("recruit_skipped", responders=newly_late, reason=reason)
+            self.log("recruit_skipped", responders=unaudited, reason=reason)
 
     async def release_surplus(self) -> None:
         """OL8: once N_need rescuers are on scene, release those still on the way (except an AED not yet delivered)."""

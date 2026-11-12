@@ -74,7 +74,8 @@ class VolunteerAgent(CEMRAgent):
         """_EvaluateAlertLocally: decide and compute ETAs on the phone; only the ETA is sent."""
         cfp: CallForProposals = inc.payload
         await self.sleep(self.uniform(self.cfg["volunteers"]["eval_delay_s"]))
-        reason = "busy" if self.commitment else self._load_reason()
+        # The load cap (OS8) is checked first: a busy volunteer's alerts also reach the human and count.
+        reason = self._load_reason() or ("busy" if self.commitment else None)
         if reason != "load_cap":
             self.alert_times.append(self.now())
             self.log("alert_shown", case=cfp.case_id)                      # reaches the human (OS8)
