@@ -83,6 +83,7 @@ class CaseRecord:
     guides_asked: set = field(default_factory=set)
     guides: set = field(default_factory=set)                # witness devices running guidance
     subject: str | None = None                              # guardian to ask for the location (P24)
+    disclosers: set = field(default_factory=set)            # guardians that disclosed data: told of closure (OS11)
     location: list | None = None
     location_refused: bool = False
     invited: set = field(default_factory=set)
@@ -108,7 +109,8 @@ class CaseRecord:
     retracted: bool = False
     human_false_alarm: bool = False
     silent_reinforced: bool = False
-    recruit_exhausted: bool = False                         # nobody left to call
+    recruit_exhausted: bool = False                         # nobody left to call (reset when an award fails)
+    unaudited_failures: list = field(default_factory=list)  # failed awards not yet followed up (OL6)
     triage_retry_at: dict = field(default_factory=dict)     # witness -> when to re-ask unanswered questions (F5)
     triage_retries: dict = field(default_factory=dict)
     triage_rechecked: set = field(default_factory=set)      # witnesses re-asked after an incoherent triage (F4)
@@ -229,6 +231,7 @@ class CaseFSM(Conversation):
                 case.guides.add(inc.sender)
                 self.log("guidance_active", guide=inc.sender)
         elif isinstance(p, Disclosure):
+            case.disclosers.add(inc.sender)
             if p.field_name == DisclosureField.PRECISE_LOCATION:
                 case.location = list(p.value)
                 self.log("case_located", location=case.location, by=inc.sender)
@@ -400,6 +403,8 @@ class CaseFSM(Conversation):
                     case.failed_aeds.add(info.aed_id)
                     case.reservation = None
                 self.log("award_failed", responder=inc.sender, task=info.task, reason=report.status)
+                case.recruit_exhausted = False         # OL6: volunteers may have become free since the last call
+                case.unaudited_failures.append(inc.sender)
                 await self.replicate()
             return
         if inc.sender in case.guides and report.status == ResponderStatus.WITNESS_SILENT:
@@ -606,6 +611,8 @@ class CaseFSM(Conversation):
             return
         info.status = "failed"
         self.log("award_failed", responder=volunteer, task=info.task, reason="busy")
+        self.case.recruit_exhausted = False
+        self.case.unaudited_failures.append(volunteer)
         if self.naive:
             await self.award_in_arrival_order()
         else:
@@ -617,9 +624,11 @@ class CaseFSM(Conversation):
         now = self.hub.now()
         if case.outcome is not None or case.ems_took_over or case.retracted:
             return
+        newly_late = []
         for name, info in case.awards.items():
             if info.active and info.on_scene_t is None and not info.late and now > info.arrive_by:
                 info.late = True
+                newly_late.append(name)
                 self.log("award_at_risk", responder=name, task=info.task)
         missing = self.uncovered()
         if missing and case.call_deadline is None and case.location is not None and not case.recruit_exhausted:
@@ -631,6 +640,14 @@ class CaseFSM(Conversation):
                 case.call_deadline = await self.call_responders(2, missing)
                 case.recruit_exhausted = case.call_deadline is None
                 self.log("recruit", tasks={str(t): n for t, n in missing.items()}, exhausted=case.recruit_exhausted)
+                case.unaudited_failures = []
+                return
+        unaudited = newly_late + case.unaudited_failures
+        case.unaudited_failures = []
+        if unaudited:                      # OL6 audit trail: why a failed/late award led to no new recruitment
+            reason = ("covered" if not missing else "call_in_progress" if case.call_deadline is not None
+                      else "no_location" if case.location is None else "pool_exhausted")
+            self.log("recruit_skipped", responders=unaudited, reason=reason)
 
     async def release_surplus(self) -> None:
         """OL8: once N_need rescuers are on scene, release those still on the way (except an AED not yet delivered)."""
@@ -922,7 +939,7 @@ class Close(Step):
         await fsm.release_all("case_closed")
         closure = CaseClosure(case.case_id, str(case.outcome), hub.now())
         recipients = {v for v in case.awards} | ({case.ems} if case.ems else set()) | (
-            {case.subject} if case.subject else set()) | set(case.guides)
+            {case.subject} if case.subject else set()) | set(case.guides) | case.disclosers
         for name in sorted(recipients):
             await fsm.send(name, closure)
         if case.subject:                          # the guardian purges on closure (OS11): send it twice
@@ -942,8 +959,8 @@ class Discard(Step):
     async def step(self):
         fsm, hub, case = self.fsm, self.agent, self.fsm.case
         case.state = CaseState.DISCARDED
-        if case.guides:                           # guidance was active: the verifier closes it
-            for guide in sorted(case.guides):
+        if case.guides or case.disclosers:        # guidance was active: the verifier closes it; and OS11
+            for guide in sorted(case.guides | case.disclosers):
                 await fsm.send(guide, CaseClosure(case.case_id, Outcome.FALSE_ALARM, hub.now()))
         # A source that alerted and was then cancelled by a human (wearer "I'm fine", witness retracted)
         # gave a false alert: a weak negative label for its reputation.

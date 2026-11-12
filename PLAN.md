@@ -283,9 +283,21 @@ O relatório e os slides são partilhados, e cada pessoa escreve a parte que imp
 - **Triagem incoerente.** Uma testemunha única com triagem incoerente deixava o P1 sem OS4 e o caso era descartado. Agora o hub volta a fazer as duas perguntas-chave, uma vez (F4), e o prazo da triagem passou para 12 s.
 - **Testes instáveis.** Os testes ponta a ponta falhavam de forma intermitente, por variação entre runs. Ficaram estáveis com estas correções (8/8 seguidos) e com um F1 detetável por dois caminhos em C4.
 
-### Próximo: sprint 3
+### Sprint 3 — em curso (11 Nov)
 
-1. **Matriz completa:** `caffeinate -i python experiments/run_matrix.py --matrix main --seeds 1-5 --workers 4`. Demora cerca de 1h40 e tem de correr **ligado à corrente, sem fechar a tampa**. Depois, `python experiments/analyse.py`.
+**Portar as experiências para Windows** (a máquina que corre a matriz; Python 3.13, venv em `.venv`):
+- **Servidor XMPP partilhado não funciona no Windows.** O `spade run` nunca completa um registo: o pyjabber faz o hashing das passwords num `ProcessPoolExecutor`; no Windows os workers são criados por *spawn*, reexecutam o ponto de entrada do `spade run` e morrem. Mesmo com um lançador corrigido, 4 × 100 logins num servidor partilhado demoravam minutos.
+  → Cada run arranca agora o **seu próprio servidor em-processo** numa porta própria (`cemr.run --xmpp-port`); o `run_matrix.py` dá uma porta a cada job. Os runs ficam totalmente independentes. Validado: 4 runs paralelos (C1–C4) válidos, arranque ~25 s, paragem máxima do loop 0,05 s.
+- **`caffeinate`** não existe no Windows: o `run_matrix.py` chama `SetThreadExecutionState` para impedir a suspensão. Fechar a tampa continua a ser proibido.
+- Escritas de texto com `encoding="utf-8"` (o default do Windows é cp1252).
+
+**Bugs encontrados ao validar C4 no Windows (o timing diferente expôs-nos), a mencionar no relatório:**
+- **OS1 — hub crashado registava ações.** Uma corrotina já a meio de um passo continuou depois do `stop()`: as mensagens já eram suprimidas, mas o `ambulance_requested` ficava no log. Agora um agente parado não regista ações (só erros).
+- **OS5 — falso positivo do checker.** Quando a EMS adjudicada responde "busy" e o caso é readjudicado a outra unidade, o checker só conhecia a última e acusava a primeira. Agora aceita qualquer unidade adjudicada ao caso.
+- **OS11 — testemunha nunca sabia do fecho (apanhado na 1.ª tentativa da matriz, C1-naive-s5).** O `CaseClosure` ia para adjudicados, EMS, titular e guias, mas não para uma testemunha que só tinha divulgado a localização. Em B1 não há orientação, por isso ela guardava os dados até ao fallback de 7200 s em vez de T_ret = 600 s. Agora o hub guarda quem divulgou dados (`disclosers`) e avisa-os no fecho e no descarte. A matriz foi reiniciada do zero para não misturar versões do código.
+- **OL6 — decisão não registada.** Um adjudicado atrasado sem re-recrutamento (tarefa já coberta, chamada em curso ou 2.º anel esgotado) não deixava rasto. O hub regista agora `recruit_skipped` com o motivo, e o checker aceita-o.
+
+1. **Matriz completa:** `python experiments/run_matrix.py --matrix main --seeds 1-5 --workers 4` (macOS: prefixo `caffeinate -i`). 65 runs, ~1h45, **ligado à corrente, sem fechar a tampa**. Depois, `python experiments/analyse.py`. *Lançada a 11 Nov.*
 2. **Fonte para a EMS:** confirmar a calibração da EMS (240 s + 30 km/h) com uma fonte, por exemplo dados do INEM.
 3. **Opcional:** C5 adversarial e o caminho 112 (A7), para comparar com as linhas de base sobre todos os incidentes.
 4. **Entrega:** relatório de desempenho (EN), slides e vídeo da demo a partir do replay no dashboard.

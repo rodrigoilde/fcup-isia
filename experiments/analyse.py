@@ -99,7 +99,7 @@ def write_markdown(summary: pd.DataFrame, runs: pd.DataFrame) -> None:
             if any(c != "—" for c in cells):
                 lines.append(f"| {label} ({unit}, {better} is better) | " + " | ".join(cells) + " |")
         lines.append("")
-    (RESULTS / "summary.md").write_text("\n".join(lines))
+    (RESULTS / "summary.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 def plot_scenario(scenario: str, summary: pd.DataFrame) -> Path:

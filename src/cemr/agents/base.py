@@ -147,7 +147,7 @@ class CEMRAgent(Agent):
     KIND = "agent"
 
     def __init__(self, name: str, ctx: SimContext, pos):
-        super().__init__(ctx.directory.jid(name), ctx.password)
+        super().__init__(ctx.directory.jid(name), ctx.password, port=ctx.xmpp_port)
         self.label = name
         self.ctx = ctx
         self.home = tuple(pos)
@@ -190,6 +190,10 @@ class CEMRAgent(Agent):
         return self.rng.uniform(*bounds)
 
     def log(self, kind: str, **fields) -> None:
+        # Crash-stop: a coroutine already past next_incoming() may still run a few steps after stop(); its
+        # sends are suppressed (send_to), so its actions never happened and must not be logged either (OS1).
+        if self.stopped and kind != "error":
+            return
         self.ctx.log.write(kind, agent=self.label, **fields)
 
     def report_error(self, where: str) -> None:
