@@ -10,14 +10,14 @@ readme = "README.md"
 requires-python = ">=3.10,<3.15"
 dependencies = [
     "spade==4.1.4",
-    "greenlet",  # needed by SQLAlchemy asyncio inside pyjabber (SPADE's embedded XMPP server)
+    "greenlet",  # o pyjabber (servidor XMPP embutido do SPADE) usa SQLAlchemy assíncrono, que precisa dele
     "numpy",
     "pandas",
     "matplotlib",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "ruff"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -25,3 +25,10 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["slow: end-to-end SPADE runs (~40 s); deselect with -m \"not slow\""]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]

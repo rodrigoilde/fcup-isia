@@ -3,17 +3,20 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
-spade_venv/
 .pytest_cache/
+.ruff_cache/
 
-# SPADE / pyjabber local server state
+# Estado local do servidor XMPP (SPADE / pyjabber)
 server.db*
 
-# Simulation outputs (results/ is versioned, raw runs are not)
+# Saídas das simulações (results/ vai para o git, os runs em bruto não)
 runs/
 spikes/out/
 
-# OS / editors
+# Documentação HTML gerada pelo pdoc a partir das docstrings
+docs/api/
+
+# Sistema operativo e editores
 .DS_Store
 .vscode/
 .idea/

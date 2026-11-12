@@ -12,10 +12,10 @@ This is a SPADE multi-agent system that does three things without a central disp
 The city is split into cells, each served by the hub on its AED cabinet. Hubs verify alerts, coordinate
 cases with a Contract Net, keep reputation, and take over each other's cases when one fails.
 
-> **Status:** sprint 2.
+> **Status:** sprint 3.
 > - All 28 protocols, scenarios C1–C4, baselines B0/B1, the rule checker, the experiment pipeline and
->   the dashboard work.
-> - Next: run the full experiment matrix and write the report; see [PLAN.md](PLAN.md).
+>   the dashboard work. The experiment matrix runs on macOS and Windows.
+> - Next: the final experiment matrix, the performance report and the slides; see [PLAN.md](PLAN.md).
 
 ## Setup
 
@@ -28,6 +28,7 @@ pip install -r requirements.txt
 pip install -e ".[dev]"
 pytest -m "not slow"   # unit tests (< 1 s)
 pytest                 # plus two end-to-end SPADE runs (~1.5 min)
+ruff check src experiments tests   # PEP 8 and unused imports (settings in pyproject.toml)
 ```
 
 On Windows: `py -3.13 -m venv .venv`, then `.venv\Scripts\activate` (tested with Python 3.13).

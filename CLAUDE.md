@@ -8,7 +8,7 @@ Trabalho prático 1 de ISIA (FCUP, 2026/27), tópico O: um sistema multiagente e
 
 - Código em `src/cemr/`, testes em `tests/`, cenários em `scenarios/`, experiências em `experiments/`.
 - Desenho em `docs/` (análise Gaia, desenho arquitetural, desenho detalhado, protocolos). Enunciado em `docs/assignment.pdf`.
-- Plano atual em `PLAN.md`. Instalação e comandos no `README.md`.
+- Instalação e comandos no `README.md`.
 
 ## O que o enunciado pede
 
