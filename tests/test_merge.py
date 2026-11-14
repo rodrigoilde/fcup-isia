@@ -2,11 +2,14 @@
 
 import random
 
+from cemr.agents.base import envelope
 from cemr.behaviours.privacy import coarse_area
 from cemr.behaviours.verification import Candidate, close_areas, notice_decision, same_incident
 from cemr.config import load_config
 from cemr.metrics.check import check
 from cemr.metrics.compute import summarize
+from cemr.protocol.messages_dispatch import CallForProposals
+from cemr.protocol.messages_response import ReleaseAck
 from cemr.sim.geometry import CityGrid
 from cemr.sim.incidents import generate_trace
 from cemr.sim.layout import generate_layout
@@ -157,3 +160,15 @@ def test_case_is_matched_to_the_incident_of_its_own_witness():
               ev(61, "case_located", agent="hub1", case="hub1-c1", location=[1010, 1000], by="wit1")]
     m2 = summarize(events, cfg)["M2_verification"]
     assert m2["recall_P1_P2_detectable"] == 100.0              # I1 é o único detetável e tem o seu caso
+
+
+# --- T1.7: reply-by na metadata ---------------------------------------------------------------------
+def test_call_for_proposals_carries_fipa_reply_by():
+    cfp = CallForProposals("hub1-c1", {"GO_TO_PATIENT": 2}, 1, "P1", "BLS", 112.5)
+    metadata = envelope(cfp, "cfp", 7)
+    assert metadata["reply-by"] == "112.5"
+    assert metadata["protocol"] == "P08-CallForResponders" and metadata["ontology"] == "cemr-v1"
+
+
+def test_messages_without_a_deadline_have_no_reply_by():
+    assert "reply-by" not in envelope(ReleaseAck("hub1-c1"), "inform", 8)

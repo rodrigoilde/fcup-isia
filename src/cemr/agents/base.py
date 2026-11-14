@@ -26,6 +26,19 @@ from ..sim.directory import Directory
 from .conversation import NEVER, Conversation, Incoming, Router, SimPeriodic, Worker
 
 
+def envelope(payload, performative: str, seq: int) -> dict:
+    """Parâmetros FIPA-ACL da mensagem, na metadata do SPADE (docs/04-protocols-and-messages.md §1).
+
+    Uma mensagem com prazo de resposta (`reply_by`) leva-o também no parâmetro FIPA reply-by.
+    """
+    metadata = {"performative": str(performative), "protocol": payload.PROTOCOL.value, "ontology": ONTOLOGY,
+                "language": LANGUAGE, "seq": str(seq)}
+    reply_by = getattr(payload, "reply_by", None)
+    if reply_by is not None:
+        metadata["reply-by"] = str(round(reply_by, 3))
+    return metadata
+
+
 class CEMRAgent(Agent):
     """Agente SPADE com o relógio simulado, o modelo de rede e o registo de eventos.
 
@@ -208,9 +221,8 @@ class CEMRAgent(Agent):
         if perf not in payload.PERFORMATIVES:
             raise ValueError(f"{type(payload).__name__} cannot travel as {perf}")
         body = encode(payload)
-        metadata = {"performative": str(perf), "protocol": payload.PROTOCOL.value, "ontology": ONTOLOGY,
-                    "language": LANGUAGE, "seq": str(next(self.seq))}
-        msg = Message(to=Directory.jid(to), sender=str(self.jid), thread=thread, body=body, metadata=metadata)
+        msg = Message(to=Directory.jid(to), sender=str(self.jid), thread=thread, body=body,
+                      metadata=envelope(payload, perf, next(self.seq)))
         delivery = self.ctx.net.decide(self.label, to)
         dropped = delivery.reason if delivery.dropped else None
         self.ctx.log.write("msg", src=self.label, dst=to, protocol=payload.PROTOCOL.code, perf=str(perf),

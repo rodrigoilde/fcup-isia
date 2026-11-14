@@ -30,6 +30,7 @@ Every message is a FIPA-ACL message carried by SPADE.
 | `:language` | metadata `language` | `json` |
 | `:conversation-id` | `thread` | see §2 |
 | `:reply-with` | metadata `seq` | per-sender sequence number; with the thread it makes retries idempotent (F5) |
+| `:reply-by` | metadata `reply-by` | deadline in simulated seconds, for messages with a `reply_by` field (P03, P04, P08, P10) |
 | `:content` | `body` | JSON object with a `type` field naming the payload (§5) |
 
 **Delivery.** Inside one simulation process SPADE hands messages directly to the receiver
