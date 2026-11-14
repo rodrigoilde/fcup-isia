@@ -9,6 +9,8 @@ clock_factor = 10                 # spikes/README.md: real delays distort sim ti
 seed = 1
 start_batch = 10                  # agents started concurrently (pyjabber drops login bursts)
 start_retries = 4
+max_suspend_s = 2.0               # validity: the machine may not be suspended for longer than this
+max_stall_sim_s = 2.0             # validity: largest event-loop stall, in simulated seconds
 
 [city]                            # A1: grid city, Manhattan travel
 size_m = 3000
@@ -46,6 +48,7 @@ quality_true = [0.7, 1.0]         # signal quality of a real collapse; scales th
 quality_false = [0.5, 1.0]        # signal quality of a false positive
 p_immobile_on_fp = 0.5            # false positives that also show immobility
 drift_p_immobile = 0.8
+event_confidence = { collapse_cardiac = 0.95, fall_immobile = 0.8, fall = 0.5 }   # x signal quality
 
 [wearer]
 prompt_countdown_s = 30           # "Are you OK?" countdown (analysis §8.3: 30–60 s)
@@ -54,6 +57,8 @@ response_delay_s = [3, 25]
 
 [witness]                         # A5
 p_report = 0.8
+report_confidence = 0.8           # confidence a witness puts in its own report (P01) and confirmation (P03)
+scene_memory_s = 900              # a witness can answer about a scene for this long after seeing it
 report_delay_s = [20, 60]
 p_answer = 0.95                   # answers each triage question
 answer_delay_s = [3, 10]
@@ -74,8 +79,12 @@ modes = { foot = 0.6, bike = 0.2, car = 0.2 }
 qualification_mix = { BLS = 0.3, BLS_AED = 0.6, HEALTH_PRO = 0.1 }
 max_alerts_per_hour = 6           # OS8 A_max
 max_consecutive_awards = 3        # OS8 K_max
+award_window_s = 7200             # OS8: awards older than this no longer count towards K_max
 aed_retrieval_s = 30              # unlocking and taking the AED out of the cabinet
-p_no_show = 0.05                  # awarded but never arrives: half withdraw on the way, half go silent
+aed_answer_timeout_s = 20         # without an answer from the cabinet's hub, the runner goes on without the AED
+p_no_show = 0.05                  # awarded but never arrives
+p_withdraw_if_no_show = 0.5       # of those, the share that withdraws on the way (the others go silent)
+withdraw_after_s = [30, 120]      # when a withdrawing volunteer gives up
 speed_variability = [1.0, 1.3]    # real travel time / estimated travel time
 max_on_scene_s = 1800             # give up a mission whose release was lost (F5)
 
@@ -91,6 +100,8 @@ ambulance = { speed = 8.3, overhead_s = 0 }   # ~30 km/h average in urban traffi
 # (e.g. INEM response-time data) before the report.
 dispatch_delay_s = 240
 care_on_scene_s = 180
+roster_wait_s = 10                # wait for the coordinator's list of who is on scene (P13)
+handover_wait_s = 20              # wait for the handover summary (P19)
 transport_s = 600                 # until the unit is available again
 first_shock_delay_s = 60          # M6: without a bystander AED, the crew's first shock comes this long after arrival
 
@@ -122,6 +133,7 @@ discard_below = 0.03              # discard early once the belief falls below th
 retract_below = 0.3               # P07: a declared case whose belief falls below this is retracted
 corroboration_deadline_s = 10
 alert_ack_timeout_s = 10          # without an AlertAck, the source tries the hub's successor (F6)
+alert_hubs_tried = 3              # the cell's hub and then up to two successors
 retry_after_s = 20                # F5: resend an unacknowledged request after this long
 max_retries = 2
 triage_deadline_s = 12              # witnesses answer in 3-10 s; leaves room for a retry inside W_max

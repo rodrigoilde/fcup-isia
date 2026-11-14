@@ -234,6 +234,19 @@ def equity(p1: list[dict], cfg: dict) -> dict:
             "volunteer_before_ems_peripheral_pct": share_before_ems(peripheral, "t_volunteer")}
 
 
+def counts(incidents: dict, by_kind: dict, declared: dict) -> dict:
+    """Contagens gerais do run: incidentes, falsos alarmes, candidatos e casos por resultado."""
+    return {"incidents": dict(Counter(i["priority"] for i in incidents.values())),
+            "undetectable": sum(1 for i in incidents.values() if not i["detectable"]),
+            "false_alarm_events": len(by_kind["gt_false_alarm"]),
+            "false_witness_events": len(by_kind["gt_false_witness"]),
+            "candidates": len(by_kind["candidate_opened"]),
+            "declared": len(declared),
+            "discarded": len(by_kind["candidate_discarded"]),
+            "retracted": len({e["case"] for e in by_kind["case_retracted"]}),
+            "closed": dict(Counter(e["outcome"] for e in by_kind["case_closed"]))}
+
+
 def summarize(events: list[dict], cfg: dict, oracle: dict | None = None) -> dict:
     """Calcula todas as métricas de um run.
 
@@ -260,15 +273,7 @@ def summarize(events: list[dict], cfg: dict, oracle: dict | None = None) -> dict
     cpr_events = by_kind["cpr_started"]
     by_bystander = sum(1 for e in cpr_events if e["by"].startswith("wit"))
     return {
-        "incidents": dict(Counter(i["priority"] for i in incidents.values())),
-        "undetectable": sum(1 for i in incidents.values() if not i["detectable"]),
-        "false_alarm_events": len(by_kind["gt_false_alarm"]),
-        "false_witness_events": len(by_kind["gt_false_witness"]),
-        "candidates": len(by_kind["candidate_opened"]),
-        "declared": len(declared),
-        "discarded": len(by_kind["candidate_discarded"]),
-        "retracted": len({e["case"] for e in by_kind["case_retracted"]}),
-        "closed": dict(Counter(e["outcome"] for e in by_kind["case_closed"])),
+        **counts(incidents, by_kind, declared),
         "M1_verification_latency_s": {"median": median(since_collapse(urgent, "t_declared")),
                                       "p90": p90(since_collapse(urgent, "t_declared"))},
         "M2_verification": verification_metrics(incidents, declared, false_dispatches),

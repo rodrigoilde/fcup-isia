@@ -1,1 +1,1 @@
-"""Live and replay dashboard."""
+"""Dashboard ao vivo e em replay."""

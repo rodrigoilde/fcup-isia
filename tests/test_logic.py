@@ -17,7 +17,8 @@ from cemr.protocol import messages
 from cemr.protocol.ontology import AEDState, Priority, Protocol
 from cemr.sim.clock import SimClock
 from cemr.sim.geometry import CityGrid
-from cemr.sim.incidents import generate_layout, generate_trace, trace_hash
+from cemr.sim.incidents import generate_trace, trace_hash
+from cemr.sim.layout import generate_layout
 from cemr.sim.network import NetworkModel
 from cemr.sim.patient import PatientState, estimated_survival, larsen_survival
 

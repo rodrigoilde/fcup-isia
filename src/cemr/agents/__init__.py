@@ -1,1 +1,1 @@
-"""SPADE agents: citizen device, bystander, volunteer, AED hub, EMS."""
+"""Agentes SPADE: dispositivo do cidadão, testemunha, voluntário, hub de DAE e ambulância."""

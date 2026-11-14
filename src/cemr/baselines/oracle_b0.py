@@ -1,16 +1,22 @@
-"""Baseline B0: a centralised oracle with complete information and no latency (analysis §8.2).
+"""Linha de base B0: um oráculo centralizado, com informação completa e sem latência (análise §8.2).
 
-For every incident it knows the exact place and time of the collapse, and every volunteer's position
-and travel mode. It dispatches instantly, picking the best volunteer, AED and ambulance. It ignores
-that volunteers may decline or be busy, so it is the best case for allocation (metric M9): the gap
-between our system and B0 is the cost of verification, privacy (ETAs to the cell centre) and autonomy.
+Para cada incidente conhece o local e a hora exatos do colapso e a posição e o modo de deslocação
+de todos os voluntários, e despacha logo o melhor voluntário, DAE e ambulância. Ignora que os
+voluntários podem recusar ou estar ocupados, por isso é o melhor caso para a alocação (métrica M9):
+a distância entre o nosso sistema e o B0 é o custo da verificação, da privacidade (ETA até ao centro
+da célula) e da autonomia.
 """
 
 from ..sim.geometry import CityGrid
-from ..sim.incidents import Layout
+from ..sim.layout import Layout
 
 
 def oracle_times(trace: dict, layout: Layout, cfg: dict) -> dict[str, dict]:
+    """Tempos do oráculo por incidente.
+
+    Returns:
+        dict[str, dict]: Incidente -> {first_responder_s, aed_s, ems_s}, em segundos desde o colapso.
+    """
     travel = cfg["travel"]
     retrieval = cfg["volunteers"]["aed_retrieval_s"]
     aeds = [pos for h, pos in layout.hub_positions.items()
@@ -18,10 +24,21 @@ def oracle_times(trace: dict, layout: Layout, cfg: dict) -> dict[str, dict]:
     out = {}
     for inc in trace["incidents"]:
         pos = tuple(inc["pos"])
-        first = min((CityGrid.travel_time(v.pos, pos, travel[v.mode]) for v in layout.volunteers), default=None)
-        aed = min((CityGrid.travel_time(v.pos, a, travel[v.mode]) + retrieval + CityGrid.travel_time(a, pos, travel[v.mode])
-                   for v in layout.volunteers for a in aeds), default=None)
-        ems = min((cfg["ems"]["dispatch_delay_s"] + CityGrid.travel_time(tuple(b), pos, travel["ambulance"])
-                   for b in layout.ems_bases), default=None)
+        first = None
+        aed = None
+        for v in layout.volunteers:
+            mode = travel[v.mode]
+            to_patient = CityGrid.travel_time(v.pos, pos, mode)
+            if first is None or to_patient < first:
+                first = to_patient
+            for a in aeds:
+                via_aed = CityGrid.travel_time(v.pos, a, mode) + retrieval + CityGrid.travel_time(a, pos, mode)
+                if aed is None or via_aed < aed:
+                    aed = via_aed
+        ems = None
+        for base in layout.ems_bases:
+            t = cfg["ems"]["dispatch_delay_s"] + CityGrid.travel_time(tuple(base), pos, travel["ambulance"])
+            if ems is None or t < ems:
+                ems = t
         out[inc["id"]] = {"first_responder_s": first, "aed_s": aed, "ems_s": ems}
     return out

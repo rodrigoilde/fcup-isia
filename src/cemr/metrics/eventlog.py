@@ -6,6 +6,7 @@ referência (tipo "gt_*") são escritos pelo ambiente e nunca são lidos pelos a
 """
 
 import json
+from collections import defaultdict
 from pathlib import Path
 from typing import Callable
 
@@ -53,3 +54,27 @@ def read_events(path: Path) -> list[dict]:
     """Lê um ficheiro events.jsonl."""
     with Path(path).open(encoding="utf-8") as fh:
         return [json.loads(line) for line in fh if line.strip()]
+
+
+class AuditLog:
+    """Eventos de um run, agrupados por tipo para as verificações.
+
+    Attributes:
+        events (list[dict]): Todos os eventos, pela ordem do registo.
+        end (float): Instante do último evento.
+    """
+
+    def __init__(self, events: list[dict]):
+        self.events = events
+        self.end = max((e["t"] for e in events), default=0.0)
+        self.by_kind = defaultdict(list)
+        for e in events:
+            self.by_kind[e["kind"]].append(e)
+
+    def of(self, kind: str) -> list[dict]:
+        """Eventos de um tipo."""
+        return self.by_kind.get(kind, [])
+
+    def crashes(self) -> dict[str, float]:
+        """Instante da falha de cada hub que falhou."""
+        return {e["agent"]: e["t"] for e in self.of("fault_hub_crash")}

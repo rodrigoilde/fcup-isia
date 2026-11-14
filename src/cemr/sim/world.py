@@ -17,7 +17,7 @@ from ..metrics.eventlog import EventLog
 from .clock import SimClock
 from .directory import Directory
 from .geometry import CityGrid, Pos, manhattan
-from .incidents import Layout
+from .layout import Layout
 from .patient import PatientState
 
 

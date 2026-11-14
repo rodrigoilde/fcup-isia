@@ -1,58 +1,71 @@
-"""AEDHubAgent: the hub of one cell (D1). Plays IncidentVerifier, IncidentCoordinator (one CaseFSM per
-case, agents/case_fsm.py), AEDCustodian (its own cabinet) and ReputationManager (its trust table).
+"""AEDHubAgent: o hub de uma célula (decisão D1), no armário de DAE dessa célula.
 
-Handled whatever their thread (service requests):
-  P25 registrations · P11/P12/P20 AED custody · P22 trust queries · P23 reputation summaries ·
-  P26 candidate notices · P27 heartbeats and case snapshots.
-New alerts (P01) join an open candidate of the same cell within the merge window (_MergeCandidates),
-or open a new one, which is announced to the neighbouring hubs (P26).
+Papéis: IncidentVerifier e IncidentCoordinator (uma CaseFSM por caso, em `case_fsm`), AEDCustodian
+(o seu armário) e ReputationManager (a sua tabela de confiança). Tratados seja qual for a thread
+(pedidos de serviço): registos P25, custódia do DAE P11/P12/P20, resumos de reputação P23, avisos
+de candidato P26 e heartbeats e réplicas P27 (em `hub_failover`).
 
-Failover (D8): every hub sends heartbeats and snapshots of its declared cases to its successor (its
-lowest-id neighbour that answers). A successor that hears nothing for the lease time takes the cases
-over (P28). Hubs fail by crash (fault injection); partitions of the fixed infrastructure are out of
-scope, which is what keeps a single owner per case (OS1) without a consensus protocol.
+Um alerta novo (P01) junta-se a um candidato aberto da mesma célula dentro da janela de fusão
+(_MergeCandidates) ou abre um candidato novo, anunciado aos hubs vizinhos (P26).
+Desenho em docs/02-architectural-design.md §2 e docs/03-detailed-design.md §3.
 """
 
 import itertools
 
 from ..behaviours.aed_custody import AEDCustody
 from ..behaviours.reputation import TrustTable
+from ..behaviours.verification import Belief
 from ..protocol.messages_detection import AlertCancel, AlertReport
-from ..protocol.messages_hubs import CandidateMerge, CandidateNotice, CaseSnapshot, Deregistration, Heartbeat, HeartbeatAck, Registration, RegistrationAck, ReputationSummary
-from ..protocol.messages_response import AEDRelease, AEDReservation, AEDReservationCancel, AEDReservationRefusal, AEDReservationRequest, AEDRetrieval, AEDRetrievalFailure, AEDUnlock
+from ..protocol.messages_hubs import (CandidateMerge, CandidateNotice, CaseSnapshot, Deregistration, Heartbeat,
+                                      HeartbeatAck, Registration, RegistrationAck, ReputationSummary)
+from ..protocol.messages_response import (AEDRelease, AEDReservation, AEDReservationCancel, AEDReservationRefusal,
+                                          AEDReservationRequest, AEDRetrieval, AEDRetrievalFailure, AEDUnlock)
 from ..protocol.ontology import AEDState, CaseState
 from ..sim.directory import Directory
-from .base import CEMRAgent, Incoming
+from .base import CEMRAgent
 from .case_fsm import CaseFSM
+from .case_record import CaseRecord
+from .conversation import Incoming
+from .hub_failover import HubFailover
 
 
 class AEDHubAgent(CEMRAgent):
+    """Hub de célula: agente híbrido em camadas (Wooldridge, 2009).
+
+    A camada reativa são os handlers de serviço (router, custódia do DAE, heartbeats); a camada
+    deliberativa é uma FSM por caso, com fusão bayesiana da evidência e Contract Net.
+
+    Attributes:
+        hub_id (int): Id da célula.
+        registry (dict): Papel -> agente -> {ring, qualification, cell, t} dos registados (P25).
+        trust (TrustTable): Tabela de confiança (D6).
+        custody (AEDCustody): Estado do armário de DAE.
+        open_cases (dict[str, CaseFSM]): Casos abertos por id.
+        relays (dict[str, tuple]): Alerta -> (hub, caso) que ficou com ele depois de uma fusão P26.
+        neighbours (list[int]): Células vizinhas, por id.
+        failover (HubFailover): Replicação e recuperação (D8).
+    """
+
     KIND = "hub"
 
     def __init__(self, hub_id: int, ctx):
         super().__init__(Directory.hub(hub_id), ctx, ctx.world.grid.hub_positions[hub_id])
         self.hub_id = hub_id
 
-    async def on_setup(self):
+    async def on_setup(self) -> None:
         cfg = self.cfg
         self.registry: dict[str, dict[str, dict]] = {"volunteer": {}, "witness": {}, "sensor": {}}
-        self.trust = TrustTable(enabled=cfg["policy"]["reputation"] and cfg["policy"]["allocation"] != "naive",
-                                peer_discount=cfg["reputation"]["peer_discount"])
+        reputation_on = cfg["policy"]["reputation"] and cfg["policy"]["allocation"] != "naive"
+        self.trust = TrustTable(enabled=reputation_on, peer_discount=cfg["reputation"]["peer_discount"])
         layout = self.world.layout
         self.custody = AEDCustody(self.hub_id, layout.aed_faulty[self.hub_id], self.rng,
                                   closed=layout.aed_closed.get(self.hub_id, False))
-        self._publish_aed_state()
+        self.publish_aed_state()
         self.open_cases: dict[str, CaseFSM] = {}
-        self.relays: dict[str, tuple[str, str]] = {}           # alert id -> (keeper hub, keeper case) after P26
-        self._case_ids = itertools.count(1)
+        self.relays: dict[str, tuple[str, str]] = {}
+        self.case_ids = itertools.count(1)
         self.neighbours = sorted(self.world.grid.neighbours[self.hub_id])
-        # P27: owner side
-        self.successor_index = 0
-        self.last_ack = 0.0
-        # P27: successor side
-        self.replicas: dict[str, dict[str, CaseSnapshot]] = {}  # owner -> case -> snapshot
-        self.last_heartbeat: dict[str, float] = {}
-        self.taken_over: set[str] = set()
+        self.failover = HubFailover(self)
         self.service_handlers = {
             Registration: self.on_registration,
             Deregistration: self.on_deregistration,
@@ -62,18 +75,19 @@ class AEDHubAgent(CEMRAgent):
             AEDRelease: self.on_aed_release,
             ReputationSummary: self.on_reputation_summary,
             CandidateNotice: self.on_candidate_notice,
-            Heartbeat: self.on_heartbeat,
-            HeartbeatAck: self.on_heartbeat_ack,
-            CaseSnapshot: self.on_snapshot,
+            Heartbeat: self.failover.on_heartbeat,
+            HeartbeatAck: self.failover.on_heartbeat_ack,
+            CaseSnapshot: self.failover.on_snapshot,
         }
-        rep, fo = cfg["reputation"], cfg["failover"]
+        rep = cfg["reputation"]
+        heartbeat_s = cfg["failover"]["heartbeat_s"]
         if self.trust.enabled:
             self.every(rep["decay_period_s"], self.decay_trust, "decay_trust")                 # _DecayTrust
             self.every(rep["gossip_period_s"], self.share_reputation, "share_reputation")     # P23
-        self.every(fo["heartbeat_s"], self.heartbeat, "heartbeat")                            # P27
-        self.every(fo["heartbeat_s"], self.watch_predecessors, "watch_predecessors")
+        self.every(heartbeat_s, self.failover.heartbeat, "heartbeat")                         # P27
+        self.every(heartbeat_s, self.failover.watch_predecessors, "watch_predecessors")       # P28
 
-    # --- P01: new alerts ----------------------------------------------------------------------
+    # --- P01: alertas novos -----------------------------------------------------------------------
     async def on_message(self, inc: Incoming) -> None:
         p = inc.payload
         if isinstance(p, (AlertReport, AlertCancel)) and inc.thread in self.relays:
@@ -87,19 +101,29 @@ class AEDHubAgent(CEMRAgent):
         else:
             await super().on_message(inc)
 
-    async def on_new_alert(self, inc: Incoming, report: AlertReport) -> None:
-        now = self.now()
+    def open_candidate_for(self, report: AlertReport) -> CaseFSM | None:
+        """_MergeCandidates: um candidato aberto da mesma célula, dentro da janela de fusão."""
         window = self.cfg["verification"]["merge_window_s"]
         for fsm in self.open_cases.values():
             case = fsm.case
-            if (case.cell == report.cell and now - case.t_open <= window
-                    and case.state not in (CaseState.CLOSED, CaseState.DISCARDED) and case.merged_into is None):
-                self.claim(report.alert_id, fsm)
-                await fsm.enqueue(inc.msg)
-                self.log("alert_merged", case=case.case_id, alert=report.alert_id, source=inc.sender)
-                return
-        case_id = f"{self.label}-c{next(self._case_ids)}"
-        fsm = CaseFSM(self, case_id, report.cell, report.event_type)
+            if case.state in (CaseState.CLOSED, CaseState.DISCARDED) or case.merged_into is not None:
+                continue
+            if case.cell == report.cell and self.now() - case.t_open <= window:
+                return fsm
+        return None
+
+    async def on_new_alert(self, inc: Incoming, report: AlertReport) -> None:
+        """Junta o alerta a um candidato aberto ou abre um candidato novo."""
+        fsm = self.open_candidate_for(report)
+        if fsm is not None:
+            self.claim(report.alert_id, fsm)
+            await fsm.enqueue(inc.msg)
+            self.log("alert_merged", case=fsm.case.case_id, alert=report.alert_id, source=inc.sender)
+            return
+        case_id = f"{self.label}-c{next(self.case_ids)}"
+        record = CaseRecord(case_id, report.cell, self.now(), Belief(self.cfg["verification"]["prior"]),
+                            first_event_type=report.event_type)
+        fsm = CaseFSM(self, record)
         self.open_cases[case_id] = fsm
         self.open_conversation(fsm)
         self.claim(report.alert_id, fsm)
@@ -108,30 +132,33 @@ class AEDHubAgent(CEMRAgent):
                  event_type=report.event_type)
 
     def case_finished(self, fsm: CaseFSM) -> None:
+        """Esquece um caso cuja FSM terminou."""
         self.open_cases.pop(fsm.case.case_id, None)
 
-    # --- P26: duplicates across cell borders ----------------------------------------------------
+    # --- P26: duplicados na fronteira entre células ------------------------------------------------
     async def announce_candidate(self, fsm: CaseFSM) -> None:
+        """Anuncia um candidato novo aos hubs vizinhos."""
         case = fsm.case
-        event = next(iter(case.sources.values())).event_type or ""
+        notice = CandidateNotice(case.case_id, case.cell, case.t_open, case.first_event_type)
         for hub_id in self.neighbours:
-            await self.send_to(Directory.hub(hub_id), CandidateNotice(case.case_id, case.cell, case.t_open, event),
-                               thread=case.case_id)
+            await self.send_to(Directory.hub(hub_id), notice, thread=case.case_id)
 
     async def on_candidate_notice(self, inc: Incoming) -> None:
-        """Keep the candidate opened first (ties: lower hub id); if that is the other one, drop ours."""
+        """Fica o candidato aberto primeiro (em empate, o do hub de menor id); se for o outro, larga o nosso."""
         notice: CandidateNotice = inc.payload
         theirs = (notice.t_open, Directory.hub_id(inc.sender))
         window = self.cfg["verification"]["merge_window_s"]
         near = set(self.world.grid.neighbours[notice.cell]) | {notice.cell}
         for fsm in list(self.open_cases.values()):
             case = fsm.case
-            if (case.state == CaseState.VERIFYING and case.merged_into is None and case.cell in near
-                    and abs(case.t_open - notice.t_open) <= window and theirs < (case.t_open, self.hub_id)):
-                await fsm.enqueue(inc.msg)          # the FSM sees the notice and drops itself
+            if case.state != CaseState.VERIFYING or case.merged_into is not None or case.cell not in near:
+                continue
+            if abs(case.t_open - notice.t_open) <= window and theirs < (case.t_open, self.hub_id):
+                await fsm.enqueue(inc.msg)          # a FSM vê o aviso e descarta-se
                 return
 
     async def drop_duplicate(self, fsm: CaseFSM) -> None:
+        """Passa os alertas do candidato largado ao hub que ficou com o incidente e reencaminha os seguintes."""
         keeper_hub, keeper_case = fsm.case.merged_into
         alerts = [{"origin": origin, "report": report} for origin, report in fsm.case.alert_reports.values()]
         await self.send_to(keeper_hub, CandidateMerge(fsm.case.case_id, keeper_case, alerts), thread=keeper_case)
@@ -139,13 +166,15 @@ class AEDHubAgent(CEMRAgent):
             self.relays[alert_id] = (keeper_hub, keeper_case)
 
     async def relay(self, inc: Incoming) -> None:
+        """Reencaminha um alerta de um candidato largado, com a fonte original."""
         keeper_hub, _ = self.relays[inc.thread]
         payload = inc.payload
         payload.origin = payload.origin or inc.sender
         await self.send_to(keeper_hub, payload, thread=inc.thread)
 
-    # --- P25: registry -----------------------------------------------------------------------
+    # --- P25: registo ------------------------------------------------------------------------------
     async def on_registration(self, inc: Incoming) -> None:
+        """P25 (subscribe): guarda quem se registou, sem coordenadas (D3)."""
         reg: Registration = inc.payload
         for role_table in self.registry.values():
             role_table.pop(inc.sender, None)
@@ -154,37 +183,43 @@ class AEDHubAgent(CEMRAgent):
         await self.reply(inc, RegistrationAck(self.hub_id))
 
     async def on_deregistration(self, inc: Incoming) -> None:
+        """P25 (cancel)."""
         self.registry.get(inc.payload.role, {}).pop(inc.sender, None)
 
     def registered(self, role: str, max_ring: int) -> list[str]:
+        """Agentes registados com um papel, até ao anel `max_ring`."""
         return sorted(name for name, info in self.registry[role].items() if info["ring"] <= max_ring)
 
-    # --- P11 / P12 / P20: AED custody ----------------------------------------------------------
-    def _publish_aed_state(self) -> None:
+    # --- P11 / P12 / P20: custódia do DAE ------------------------------------------------------------
+    def publish_aed_state(self) -> None:
+        """Atualiza o estado do DAE no registo público (só o próprio hub o pode fazer)."""
         self.world.set_aed_state(self.hub_id, str(self.custody.state), by_hub=self.hub_id)
 
     async def on_reserve(self, inc: Incoming) -> None:
+        """P11: reserva o DAE para um caso (OS3: no máximo uma reserva ativa)."""
         req: AEDReservationRequest = inc.payload
         self.custody.expire(self.now())
         prior = str(self.custody.state)
         ok, result = self.custody.reserve(req.case_id, req.award_token, req.valid_for_s, self.now())
         self.log("aed_reserve", aed=self.hub_id, case=req.case_id, granted=ok, result=result, prior_state=prior)
-        self._publish_aed_state()
+        self.publish_aed_state()
         if ok:
-            await self.reply(inc, AEDReservation(req.case_id, self.hub_id, result,
-                                                 self.custody.reservation.expires_at))
+            expires_at = self.custody.reservation.expires_at
+            await self.reply(inc, AEDReservation(req.case_id, self.hub_id, result, expires_at))
         else:
             await self.reply(inc, AEDReservationRefusal(req.case_id, self.hub_id, result))
 
     async def on_reservation_cancel(self, inc: Incoming) -> None:
+        """P11 (cancel)."""
         if self.custody.cancel(inc.payload.reservation_ref):
-            self._publish_aed_state()
+            self.publish_aed_state()
             self.log("aed_reservation_cancelled", aed=self.hub_id, case=inc.payload.case_id)
 
     async def on_retrieve(self, inc: Incoming) -> None:
+        """P12: abre o armário ao estafeta adjudicado."""
         req: AEDRetrieval = inc.payload
         ok, result = self.custody.retrieve(req.reservation_ref, req.award_token, self.now())
-        self._publish_aed_state()
+        self.publish_aed_state()
         if ok:
             await self.reply(inc, AEDUnlock(req.case_id, self.hub_id, result))
         else:
@@ -193,18 +228,22 @@ class AEDHubAgent(CEMRAgent):
                  reason=None if ok else result)
 
     async def on_aed_release(self, inc: Incoming) -> None:
+        """P20: o caso fechou; um DAE usado fica fora de serviço até ser reposto."""
         state = self.custody.release(inc.payload.reservation_ref)
-        self._publish_aed_state()
+        self.publish_aed_state()
         self.log("aed_released", aed=self.hub_id, case=inc.payload.case_id, state=str(state))
         if state == AEDState.UNAVAILABLE:
-            async def restock():
-                await self.sleep(self.cfg["aed"]["restock_s"])
-                self.custody.restock()
-                self._publish_aed_state()
-            self.spawn(restock, "aed_restock")
+            self.spawn(self.restock, "aed_restock")
 
-    # --- P21 / P22 / P23: reputation ----------------------------------------------------------
+    async def restock(self) -> None:
+        """Reposição do DAE, passado o tempo de verificação."""
+        await self.sleep(self.cfg["aed"]["restock_s"])
+        self.custody.restock()
+        self.publish_aed_state()
+
+    # --- P21 / P23: reputação -------------------------------------------------------------------------
     def apply_outcome(self, case_id: str, labels: list[dict]) -> None:
+        """P21: junta os rótulos de resultado à tabela de confiança."""
         if not self.trust.enabled:
             return
         for label in labels:
@@ -213,72 +252,18 @@ class AEDHubAgent(CEMRAgent):
                      success=label["success"], trust=round(trust, 3))
 
     async def decay_trust(self) -> None:
+        """_DecayTrust: aproxima as contagens do prior."""
         self.trust.decay(self.cfg["reputation"]["decay_factor"])
 
     async def share_reputation(self) -> None:
+        """P23: envia as contagens próprias aos hubs vizinhos."""
         entries = self.trust.summary()
-        if entries:
-            for hub_id in self.neighbours:
-                await self.send_to(Directory.hub(hub_id), ReputationSummary(entries), thread=f"rep-{self.label}")
+        if not entries:
+            return
+        for hub_id in self.neighbours:
+            await self.send_to(Directory.hub(hub_id), ReputationSummary(entries), thread=f"rep-{self.label}")
 
     async def on_reputation_summary(self, inc: Incoming) -> None:
+        """P23: guarda o resumo mais recente de um vizinho."""
         if self.trust.enabled:
             self.trust.merge(inc.sender, inc.payload.entries)
-
-    # --- P27 / P28: replication and failover -----------------------------------------------------
-    @property
-    def successor(self) -> str:
-        return Directory.hub(self.neighbours[self.successor_index % len(self.neighbours)])
-
-    async def replicate(self, snapshot: CaseSnapshot) -> None:
-        await self.send_to(self.successor, snapshot, thread=snapshot.case_id)
-
-    async def heartbeat(self) -> None:
-        fo = self.cfg["failover"]
-        now = self.now()
-        lease = fo["heartbeat_s"] * fo["lease_heartbeats"]
-        if self.last_ack and now - self.last_ack > lease:        # successor silent: switch to the next one
-            self.successor_index += 1
-            self.last_ack = now
-            self.log("successor_changed", successor=self.successor)
-            for fsm in list(self.open_cases.values()):
-                await fsm.replicate()
-        if not self.last_ack:
-            self.last_ack = now
-        open_cases = sorted(c for c, fsm in self.open_cases.items() if fsm.declared)
-        await self.send_to(self.successor, Heartbeat(open_cases, now + lease), thread=f"hb-{self.label}")
-
-    async def on_heartbeat(self, inc: Incoming) -> None:
-        self.last_heartbeat[inc.sender] = self.now()
-        owned = set(inc.payload.open_cases)
-        for case_id in [c for c in self.replicas.get(inc.sender, {}) if c not in owned]:
-            del self.replicas[inc.sender][case_id]                  # closed since the snapshot
-        await self.reply(inc, HeartbeatAck(inc.payload.lease_until))
-
-    async def on_heartbeat_ack(self, inc: Incoming) -> None:
-        self.last_ack = self.now()
-
-    async def on_snapshot(self, inc: Incoming) -> None:
-        snap: CaseSnapshot = inc.payload
-        self.last_heartbeat.setdefault(inc.sender, self.now())
-        cases = self.replicas.setdefault(inc.sender, {})
-        if snap.closed:
-            cases.pop(snap.case_id, None)
-        else:
-            cases[snap.case_id] = snap
-
-    async def watch_predecessors(self) -> None:
-        """Take over the cases of a hub whose heartbeats stopped for longer than the lease (+ margin)."""
-        fo = self.cfg["failover"]
-        limit = fo["heartbeat_s"] * (fo["lease_heartbeats"] + fo["takeover_margin_heartbeats"])
-        now = self.now()
-        for owner, last in list(self.last_heartbeat.items()):
-            if owner in self.taken_over or now - last <= limit:
-                continue
-            self.taken_over.add(owner)
-            cases = self.replicas.pop(owner, {})
-            self.log("takeover", previous=owner, cases=sorted(cases), silent_for=round(now - last, 1))
-            for snap in cases.values():
-                fsm = CaseFSM.from_snapshot(self, snap, owner)
-                self.open_cases[snap.case_id] = fsm
-                self.open_conversation(fsm)
