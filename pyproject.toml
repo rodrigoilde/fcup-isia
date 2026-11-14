@@ -17,14 +17,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "ruff", "pdoc"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["slow: end-to-end SPADE runs (~40 s); deselect with -m \"not slow\""]
+markers = ["slow: end-to-end SPADE runs (~50 s each); deselect with -m \"not slow\""]
 
 [tool.ruff]
 line-length = 120
