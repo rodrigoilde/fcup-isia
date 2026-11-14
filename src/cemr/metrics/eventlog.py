@@ -1,8 +1,8 @@
-"""Append-only event log, one JSON object per line.
+"""Registo de eventos só de acrescento, um objeto JSON por linha.
 
-It plays the role of the auditLog resource (OS10: every decision and disclosure is recorded) and is the
-single source for the metrics M1–M13, the rule checker and the dashboard. Ground-truth records
-(kind "gt_*") are written by the environment and never read by agents.
+Faz o papel do recurso auditLog (OS10: todas as decisões e divulgações ficam registadas) e é a única
+fonte das métricas M1-M13, do verificador de regras e do dashboard. Os registos de verdade de
+referência (tipo "gt_*") são escritos pelo ambiente e nunca são lidos pelos agentes.
 """
 
 import json
@@ -13,33 +13,43 @@ from ..sim.clock import SimClock
 
 
 class EventLog:
+    """Registo de eventos de um run.
+
+    Attributes:
+        records (list[dict]): Todos os eventos escritos, pela ordem em que aconteceram.
+    """
+
     def __init__(self, clock: SimClock, path: Path | None = None):
         self.clock = clock
         self.records: list[dict] = []
-        self._subscribers: list[Callable[[dict], None]] = []
-        self._fh = None
+        self.subscribers: list[Callable[[dict], None]] = []
+        self.file = None
         if path is not None:
             path.parent.mkdir(parents=True, exist_ok=True)
-            self._fh = path.open("w", buffering=1)
+            self.file = path.open("w", buffering=1, encoding="utf-8")
 
     def write(self, kind: str, **fields) -> dict:
+        """Escreve um evento com o instante simulado atual e avisa os subscritores (o dashboard)."""
         record = {"t": round(self.clock.now(), 3), "kind": kind, **fields}
         self.records.append(record)
-        if self._fh is not None:
-            self._fh.write(json.dumps(record, separators=(",", ":")) + "\n")
-        for callback in self._subscribers:
+        if self.file is not None:
+            self.file.write(json.dumps(record, separators=(",", ":")) + "\n")
+        for callback in self.subscribers:
             callback(record)
         return record
 
     def subscribe(self, callback: Callable[[dict], None]) -> None:
-        self._subscribers.append(callback)
+        """Pede para `callback` ser chamado com cada evento novo."""
+        self.subscribers.append(callback)
 
     def close(self) -> None:
-        if self._fh is not None:
-            self._fh.close()
-            self._fh = None
+        """Fecha o ficheiro do registo."""
+        if self.file is not None:
+            self.file.close()
+            self.file = None
 
 
 def read_events(path: Path) -> list[dict]:
-    with Path(path).open() as fh:
+    """Lê um ficheiro events.jsonl."""
+    with Path(path).open(encoding="utf-8") as fh:
         return [json.loads(line) for line in fh if line.strip()]

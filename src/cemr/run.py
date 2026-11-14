@@ -51,7 +51,7 @@ def build(cfg: dict, out_dir: Path, prefix: str, xmpp_port: int = 5222):
     trace = generate_trace(cfg, layout, grid, random.Random(f"{seed}/trace"), run["duration_s"])
     world = World(cfg, grid, layout, clock, log)
     net = NetworkModel(cfg, random.Random(f"{seed}/network"), clock, world)
-    directory = Directory(prefix, hubs=layout.hub_positions, ems_units=len(layout.ems_bases))
+    directory = Directory(hubs=layout.hub_positions, ems_units=len(layout.ems_bases))
     ctx = SimContext(cfg, clock, world, net, log, directory, seed, xmpp_port=xmpp_port)
     agents = [AEDHubAgent(h, ctx) for h in sorted(layout.hub_positions)]          # hubs first: others register
     agents += [EMSAgent(i, ctx, base) for i, base in enumerate(layout.ems_bases)]
@@ -109,7 +109,7 @@ async def simulate(cfg: dict, out_dir: Path, prefix: str, quiet: bool = False, v
         ctx.log.write("run_end")
         await asyncio.gather(*(a.stop() for a in agents), return_exceptions=True)
         ctx.log.close()
-    summary = summarize(ctx.log.records, run["duration_s"], oracle_times(trace, layout, cfg), cfg["city"]["size_m"])
+    summary = summarize(ctx.log.records, cfg, oracle_times(trace, layout, cfg))
     summary["trace_hash"] = trace_hash(trace)
     summary["rules"] = summary_line(check(ctx.log.records, cfg))
     summary.update(validity(run, ctx.clock.now(), time.time() - wall0, time.monotonic() - mono0, stall["max"]))

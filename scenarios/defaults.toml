@@ -13,6 +13,7 @@ start_retries = 4
 [city]                            # A1: grid city, Manhattan travel
 size_m = 3000
 grid_spacing_m = 100
+scene_radius_m = 30                # who is this close to a patient is "on scene" (a witness stands 5-15 m away)
 
 [population]                      # analysis §8.3 "Dimensão"
 devices = 40                      # citizen sensor devices (SensorMonitor)
@@ -29,6 +30,7 @@ p1_shockable = 0.4                # fraction of P1 with a shockable rhythm
 p_wearer = 0.5                    # patient wears one of the citizen devices
 p_witness = 0.6                   # a bystander sees the collapse (A5)
 witness_busy_s = 1800             # a bystander witnesses at most one incident per 30 min
+witness_distance_m = [5, 15]      # distance from the witness to the patient
 surge = {}                        # C3: { t_s, duration_s, count, centre = [x, y], radius_m, p_witness }
 
 [sensors]                         # A2
@@ -40,6 +42,10 @@ policy = "adaptive"               # adaptive (AlertFirst only for P1-like signal
 drifting_devices = 0              # F3: devices whose sensors drift (C2)
 drift_fp_per_hour = 1.0
 drift_p_cardiac_flag = 0.6
+quality_true = [0.7, 1.0]         # signal quality of a real collapse; scales the device's confidence
+quality_false = [0.5, 1.0]        # signal quality of a false positive
+p_immobile_on_fp = 0.5            # false positives that also show immobility
+drift_p_immobile = 0.8
 
 [wearer]
 prompt_countdown_s = 30           # "Are you OK?" countdown (analysis §8.3: 30–60 s)
@@ -59,6 +65,7 @@ p_give_up_per_cycle = 0.03        # extra per compression cycle after the second
 tired_after_cycles = 3            # reports TIRED from the third two-minute cycle on
 t_silence_s = 20                  # T_silence: guide repeats, then reports WITNESS_SILENT
 false_report_per_hour = 0.0       # F4: a citizen misreads a scene (someone asleep looks unconscious) (C2)
+false_report_radius_m = 200       # the misread scene is within this distance of the citizen's home
 
 [volunteers]                      # A6
 p_accept = 0.7
@@ -85,6 +92,7 @@ ambulance = { speed = 8.3, overhead_s = 0 }   # ~30 km/h average in urban traffi
 dispatch_delay_s = 240
 care_on_scene_s = 180
 transport_s = 600                 # until the unit is available again
+first_shock_delay_s = 60          # M6: without a bystander AED, the crew's first shock comes this long after arrival
 
 [aed]
 restock_s = 1800                  # a used AED is out of service until checked and restocked
@@ -168,6 +176,10 @@ hub_crashes = []                  # [[faults.hub_crashes]] hub = 3, at_s = 900
 [privacy]                         # D7, OS11
 retention_s = 600                 # T_ret: personal data purged at most this long after CloseCase
 max_retention_s = 7200            # fallback purge if the closure never reaches the guardian
+
+[metrics]                         # only used to compute the metrics, never by the agents
+match_radius_m = 50               # a disclosed location this close to a patient is matched to that incident
+central_radius_m = 1000           # M13: incidents within this distance of the city centre are "central"
 
 [registration]                    # D3: register with hubs up to this ring distance
 ring = { volunteer = 2, witness = 1, sensor = 1 }

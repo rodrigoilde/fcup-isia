@@ -182,10 +182,10 @@ def test_larsen():
 def test_survival_uses_ems_when_nobody_helped():
     p = PatientState("I1", "P1", True, collapse_t=0, pos=(0, 0), ems_arrival_t=600)
     # CPR at 10 min, shock at 11 min, ALS at 10 min
-    assert estimated_survival(p) == pytest.approx(67 - 23 - 12.1 - 21)
+    assert estimated_survival(p, 60) == pytest.approx(67 - 23 - 12.1 - 21)
     p.cpr_start_t, p.first_shock_t = 120, 240
-    assert estimated_survival(p) == pytest.approx(67 - 4.6 - 4.4 - 21)
-    assert estimated_survival(PatientState("I2", "P2", False, 0, (0, 0))) is None
+    assert estimated_survival(p, 60) == pytest.approx(67 - 4.6 - 4.4 - 21)
+    assert estimated_survival(PatientState("I2", "P2", False, 0, (0, 0)), 60) is None
 
 
 # --- environment ---------------------------------------------------------------------------------
