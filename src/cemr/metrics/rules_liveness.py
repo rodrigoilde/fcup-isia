@@ -51,8 +51,8 @@ def guided_pairs(log: AuditLog) -> set[tuple[str, str]]:
 
 
 def check_ol3(log: AuditLog, cfg: dict) -> list[str]:
-    """OL3: uma testemunha que diz "não responde" recebe orientação."""
-    if is_naive(cfg):
+    """OL3: uma testemunha que diz "não responde" recebe orientação (exceto na B1 e na variante sem orientação)."""
+    if is_naive(cfg) or not cfg["policy"]["guidance"]:
         return []
     guided = guided_pairs(log)
     incoherent = {(e["case"], e["source"]) for e in log.of("triage_incoherent") if e.get("action") != "re-ask"}

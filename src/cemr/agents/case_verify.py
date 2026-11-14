@@ -196,8 +196,14 @@ async def recheck_triage(fsm: "CaseFSM", src) -> None:
 
 
 async def activate_guidance(fsm: "CaseFSM", witness: str, triage: dict) -> None:
-    """P05: a orientação começa com a triagem, antes da declaração (OL3), e só para quem respondeu (OL5)."""
+    """P05: a orientação começa com a triagem, antes da declaração (OL3), e só para quem respondeu (OL5).
+
+    A variante `policy.guidance = false` desliga só a orientação (a triagem continua, porque faz
+    parte da verificação), para separar o seu efeito do da alocação.
+    """
     case = fsm.case
+    if not fsm.hub.cfg["policy"]["guidance"]:
+        return
     if witness in case.guides_asked or case.outcome is not None:
         return
     case.guides_asked.add(witness)

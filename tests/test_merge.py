@@ -86,3 +86,20 @@ def test_dup_rule_accepts_one_case_per_patient():
               ev(12, "case_located", agent="hub1", case="hub1-c1", location=[1000, 1010]),
               ev(13, "case_located", agent="hub1", case="hub1-c2", location=[1300, 1010])]
     assert not check(events, CFG)["DUP"]
+
+
+# --- T1.3: variante sem orientação ----------------------------------------------------------------
+def triage_not_responding():
+    return [ev(0, "candidate_opened", agent="hub1", case="c1"),
+            ev(5, "triage_answer", agent="hub1", case="c1", source="wit1", question="responsive", answer="no"),
+            ev(6, "triage_answer", agent="hub1", case="c1", source="wit1", question="breathing_normally",
+               answer="no")]
+
+
+def test_ol3_requires_guidance_after_a_not_responding_triage():
+    assert check(triage_not_responding(), CFG)["OL3"]
+
+
+def test_ol3_is_not_checked_without_guidance():
+    cfg = load_config("c1", {"policy": {"guidance": False}})
+    assert not check(triage_not_responding(), cfg)["OL3"]

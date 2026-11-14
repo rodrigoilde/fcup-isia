@@ -200,6 +200,7 @@ ring = { volunteer = 2, witness = 1, sensor = 1 }
 [policy]                          # variation points (docs/02 §9)
 allocation = "contract_net"       # contract_net | naive (baseline B1)
 reputation = true
+guidance = true                   # false: no bystander guidance (P05), to separate its effect from allocation
 
 [scripted]                        # incidents injected at fixed times, on top of the Poisson process
 incidents = []                    # [[scripted.incidents]] t_s, priority, shockable, wearer, witness
