@@ -234,7 +234,8 @@ class World:
         name = Directory.bystander(stimulus["bystander"])
         self.teleport(name, tuple(stimulus["pos"]))
         self.phantoms[pos_key(stimulus["pos"])] = {"responsive": False, "breathing_normally": True}
-        self.log.write("gt_false_witness", witness=name, pos=stimulus["pos"])
+        prankster = stimulus.get("prankster", False)
+        self.log.write("gt_false_witness", witness=name, pos=stimulus["pos"], prankster=prankster)
         self.perceptions(name).put_nowait({"type": "observe_collapse", "pos": stimulus["pos"], "t": self.clock.now(),
                                            "will_report": stimulus.get("will_report")})
 

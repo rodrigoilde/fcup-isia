@@ -1,9 +1,14 @@
 """Testes da fusão de alertas por área (T1.1), da deduplicação P26 simétrica e da regra DUP (T1.2)."""
 
+import random
+
 from cemr.behaviours.privacy import coarse_area
 from cemr.behaviours.verification import Candidate, close_areas, notice_decision, same_incident
 from cemr.config import load_config
 from cemr.metrics.check import check
+from cemr.sim.geometry import CityGrid
+from cemr.sim.incidents import generate_trace
+from cemr.sim.layout import generate_layout
 
 CFG = load_config("c1")
 WINDOW = CFG["verification"]["merge_window_s"]
@@ -103,3 +108,22 @@ def test_ol3_requires_guidance_after_a_not_responding_triage():
 def test_ol3_is_not_checked_without_guidance():
     cfg = load_config("c1", {"policy": {"guidance": False}})
     assert not check(triage_not_responding(), cfg)["OL3"]
+
+
+# --- T1.4: cenário C5 com fontes reincidentes -----------------------------------------------------
+def make_trace(scenario: str, seed: int = 1) -> dict:
+    cfg = load_config(scenario)
+    layout = generate_layout(cfg, random.Random(f"{seed}/layout"))
+    grid = CityGrid(cfg["city"]["size_m"], cfg["city"]["grid_spacing_m"], layout.hub_positions)
+    return generate_trace(cfg, layout, grid, random.Random(f"{seed}/trace"), cfg["run"]["duration_s"])
+
+
+def test_c5_pranksters_are_two_citizens_who_always_report():
+    pranks = [s for s in make_trace("c5")["stimuli"] if s.get("prankster")]
+    assert len({s["bystander"] for s in pranks}) == 2
+    assert len(pranks) > 2                                     # reincidentes: mais do que um relato cada
+    assert all(s["will_report"] for s in pranks)
+
+
+def test_scenarios_without_pranksters_have_none():
+    assert not [s for s in make_trace("c1")["stimuli"] if s.get("prankster")]

@@ -228,6 +228,30 @@ def false_witness_reports(cfg: dict, layout: Layout, grid: CityGrid, rng: random
     return stimuli
 
 
+def prankster_reports(cfg: dict, layout: Layout, grid: CityGrid, rng: random.Random,
+                      duration_s: float, incidents: list[dict]) -> list[dict]:
+    """C5: cidadãos reincidentes que reportam colapsos que não aconteceram (fontes não cooperativas).
+
+    Ao contrário dos falsos relatos do F4, que vêm de pessoas diferentes, estes repetem-se, por isso a
+    reputação pode aprender a desconfiar deles. Reportam sempre, e a cena parece um P2 (não responde
+    mas respira), que sem reputação passa a verificação pelo ramo "humano fiável" da OS4.
+    """
+    wcfg = cfg["witness"]
+    if wcfg["pranksters"] == 0:
+        return []
+    chosen = sorted(rng.sample(range(len(layout.bystanders)), wcfg["pranksters"]))
+    rate = wcfg["prankster_rate_per_hour"] / 3600.0
+    stimuli = []
+    for bystander in chosen:
+        for t in poisson_times(rng, rate, duration_s):
+            if busy_witnessing(incidents, bystander, t, cfg["incidents"]["witness_busy_s"]):
+                continue
+            pos = point_in_disk(rng, layout.bystanders[bystander], wcfg["false_report_radius_m"], grid)
+            stimuli.append({"t": t, "kind": "false_witness", "bystander": bystander, "pos": list(pos),
+                            "will_report": True, "prankster": True})
+    return stimuli
+
+
 def stimulus_order(stimulus: dict) -> tuple:
     """Ordem dos estímulos: por tempo, tipo e agente."""
     who = stimulus.get("device", stimulus.get("bystander", ""))
@@ -247,6 +271,7 @@ def generate_trace(cfg: dict, layout: Layout, grid: CityGrid, rng: random.Random
     incidents, stimuli = place_incidents(cfg, specs, layout, grid, rng)
     stimuli += false_sensor_events(cfg, layout, rng, duration_s)
     stimuli += false_witness_reports(cfg, layout, grid, rng, duration_s, incidents)
+    stimuli += prankster_reports(cfg, layout, grid, rng, duration_s, incidents)
     stimuli.sort(key=stimulus_order)
     return {"incidents": incidents, "stimuli": stimuli}
 

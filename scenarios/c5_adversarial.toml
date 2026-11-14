@@ -1,0 +1,16 @@
+# C5 — Adversarial sources (analysis §8.2, F15).
+# The C1 city with two citizens who keep reporting collapses that did not happen. Each false scene looks like
+# an unconscious person who breathes (P2), so without reputation it passes verification through the
+# "reliable human" branch of OS4 and an ambulance is sent for nothing.
+# Question: does the reputation model (D6) stop repeated false reports, and at what cost?
+# Variants: --set policy.reputation=false; --set policy.allocation=naive
+
+[run]
+name = "c5_adversarial"
+
+[incidents]
+rate_per_hour = 3.0
+
+[witness]
+pranksters = 2
+prankster_rate_per_hour = 4.0

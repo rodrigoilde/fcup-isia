@@ -71,6 +71,8 @@ tired_after_cycles = 3            # reports TIRED from the third two-minute cycl
 t_silence_s = 20                  # T_silence: guide repeats, then reports WITNESS_SILENT
 false_report_per_hour = 0.0       # F4: a citizen misreads a scene (someone asleep looks unconscious) (C2)
 false_report_radius_m = 200       # the misread scene is within this distance of the citizen's home
+pranksters = 0                    # C5: citizens who keep reporting collapses that did not happen
+prankster_rate_per_hour = 4.0     # false reports per prankster per hour
 
 [volunteers]                      # A6
 p_accept = 0.7
