@@ -195,6 +195,7 @@ max_retention_s = 7200            # fallback purge if the closure never reaches 
 [metrics]                         # only used to compute the metrics, never by the agents
 match_radius_m = 50               # a disclosed location this close to a patient is matched to that incident
 central_radius_m = 1000           # M13: incidents within this distance of the city centre are "central"
+report_window_s = 120             # M2: an alert from the patient's device or witness this soon after the collapse means it was reported
 
 [registration]                    # D3: register with hubs up to this ring distance
 ring = { volunteer = 2, witness = 1, sensor = 1 }

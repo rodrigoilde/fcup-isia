@@ -6,6 +6,7 @@ from cemr.behaviours.privacy import coarse_area
 from cemr.behaviours.verification import Candidate, close_areas, notice_decision, same_incident
 from cemr.config import load_config
 from cemr.metrics.check import check
+from cemr.metrics.compute import summarize
 from cemr.sim.geometry import CityGrid
 from cemr.sim.incidents import generate_trace
 from cemr.sim.layout import generate_layout
@@ -127,3 +128,32 @@ def test_c5_pranksters_are_two_citizens_who_always_report():
 
 def test_scenarios_without_pranksters_have_none():
     assert not [s for s in make_trace("c1")["stimuli"] if s.get("prankster")]
+
+
+# --- T1.5: recall sobre os incidentes reportados --------------------------------------------------
+def test_recall_reported_ignores_incidents_nobody_reported():
+    cfg = load_config("c1")
+    events = [ev(0, "gt_collapse", incident="I1", pos=[1000, 1000], cell=1, priority="P1", shockable=False,
+                 device=None, witness="wit1"),
+              ev(0, "gt_collapse", incident="I2", pos=[2000, 2000], cell=2, priority="P1", shockable=False,
+                 device=None, witness="wit2"),
+              ev(30, "msg", src="wit1", dst="hub1", msg_type="AlertReport", thread="wit1-a1", dropped=None,
+                 protocol="P01", bytes=10),
+              ev(60, "case_declared", agent="hub1", case="hub1-c1", priority="P1", p=0.9, rule="reliable_human"),
+              ev(61, "case_located", agent="hub1", case="hub1-c1", location=[1000, 1010])]
+    m2 = summarize(events, cfg)["M2_verification"]
+    assert m2["recall_P1_P2_detectable"] == 50.0               # a testemunha de I2 viu mas não reportou
+    assert m2["recall_P1_P2_reported"] == 100.0
+
+
+def test_case_is_matched_to_the_incident_of_its_own_witness():
+    # Dois doentes a poucos metros (pico do C3): a testemunha de I1 está mais perto de I2.
+    cfg = load_config("c3")
+    events = [ev(0, "gt_collapse", incident="I1", pos=[1000, 1000], cell=1, priority="P1", shockable=False,
+                 device=None, witness="wit1"),
+              ev(0, "gt_collapse", incident="I2", pos=[1012, 1000], cell=1, priority="P1", shockable=False,
+                 device=None, witness=None),
+              ev(60, "case_declared", agent="hub1", case="hub1-c1", priority="P1", p=0.9, rule="reliable_human"),
+              ev(61, "case_located", agent="hub1", case="hub1-c1", location=[1010, 1000], by="wit1")]
+    m2 = summarize(events, cfg)["M2_verification"]
+    assert m2["recall_P1_P2_detectable"] == 100.0              # I1 é o único detetável e tem o seu caso

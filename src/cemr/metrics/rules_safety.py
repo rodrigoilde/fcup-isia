@@ -10,7 +10,7 @@ from collections import defaultdict
 
 from ..behaviours.guidance import STEPS
 from ..protocol.ontology import Qualification
-from .compute import nearest_incident
+from .compute import match_incident
 from .eventlog import AuditLog
 
 # Eventos que só o dono de um caso pode registar (OS1)
@@ -178,15 +178,17 @@ def check_dup(log: AuditLog, cfg: dict) -> list[str]:
     """DUP: nenhum incidente é tratado por dois casos declarados (deduplicação P26 e fusão de alertas).
 
     Um caso duplicado não conta como falso despacho nas métricas, por isso precisa desta regra para
-    ficar visível. Cada caso é associado ao doente mais próximo da localização divulgada (P24).
+    ficar visível. Cada caso é associado ao doente de quem divulgou a localização (P24).
     """
-    incidents = {e["incident"]: {"pos": e["pos"]} for e in log.of("gt_collapse")}
+    incidents = {}
+    for e in log.of("gt_collapse"):
+        incidents[e["incident"]] = {"pos": e["pos"], "device": e.get("device"), "witness": e.get("witness")}
     declared = {e["case"] for e in log.of("case_declared")}
     cases_of = defaultdict(set)
     for e in log.of("case_located"):
         if e["case"] not in declared:
             continue
-        incident = nearest_incident(incidents, e["location"], cfg["metrics"]["match_radius_m"])
+        incident = match_incident(incidents, e, cfg["metrics"]["match_radius_m"])
         if incident is not None:
             cases_of[incident].add(e["case"])
     return [f"{incident} handled by {len(cases)} declared cases ({', '.join(sorted(cases))})"

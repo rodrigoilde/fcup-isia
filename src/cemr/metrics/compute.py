@@ -74,6 +74,21 @@ def nearest_incident(incidents: dict, location, radius: float) -> str | None:
     return None
 
 
+def match_incident(incidents: dict, located: dict, radius: float) -> str | None:
+    """Incidente de um caso, a partir do evento "case_located".
+
+    Se quem divulgou a localização é o dispositivo ou a testemunha de um incidente próximo, o caso é
+    desse incidente. Só depois se usa o doente mais próximo: num pico (C3) dois doentes podem estar a
+    poucos metros, e a testemunha de um pode estar mais perto do outro.
+    """
+    for name, inc in incidents.items():
+        own_source = located.get("by") in (inc["device"], inc["witness"])
+        near = abs(inc["pos"][0] - located["location"][0]) + abs(inc["pos"][1] - located["location"][1]) <= radius
+        if own_source and near:
+            return name
+    return nearest_incident(incidents, located["location"], radius)
+
+
 def incident_table(events: list[dict], radius: float) -> tuple[dict[str, dict], dict[str, str]]:
     """Tabela dos incidentes com o instante de cada marco e a associação caso -> incidente."""
     incidents = {}
@@ -88,7 +103,7 @@ def incident_table(events: list[dict], radius: float) -> tuple[dict[str, dict], 
     for e in events:
         kind = e["kind"]
         if kind == "case_located":
-            incident = nearest_incident(incidents, e["location"], radius)
+            incident = match_incident(incidents, e, radius)
             if incident and e["case"] in declared:
                 case_incident[e["case"]] = incident
                 if e["case"] not in incidents[incident]["cases"]:
@@ -133,13 +148,33 @@ def survival_values(group: list[dict], cfg: dict) -> list[float]:
 
 
 # --- métricas por grupo -----------------------------------------------------------------------------
-def verification_metrics(incidents: dict, declared: dict, false_dispatches: list) -> dict:
-    """M2: precisão e recall da verificação."""
+def reported_incidents(incidents: dict, by_kind: dict, window_s: float) -> set[str]:
+    """Incidentes cujo dispositivo ou testemunha enviou pelo menos um alerta (P01) logo depois do colapso."""
+    reported = set()
+    for m in by_kind["msg"]:
+        if m["msg_type"] != "AlertReport":
+            continue
+        for name, inc in incidents.items():
+            from_source = m["src"] in (inc["device"], inc["witness"])
+            if from_source and inc["t_collapse"] <= m["t"] <= inc["t_collapse"] + window_s:
+                reported.add(name)
+    return reported
+
+
+def verification_metrics(incidents: dict, declared: dict, false_dispatches: list, reported: set) -> dict:
+    """M2: precisão e recall da verificação.
+
+    Há três recalls. O de todos os P1/P2 inclui os que só uma chamada para o 112 apanharia (A7); o dos
+    detetáveis exclui-os; o dos reportados exclui também os que nenhuma fonte chegou a reportar (a
+    testemunha decidiu não o fazer, ou o sensor falhou), e por isso mede só a fusão e a verificação.
+    """
     urgent_all = [i for i in incidents.values() if i["priority"] in ("P1", "P2")]
     urgent = [i for i in urgent_all if i["detectable"]]
+    urgent_reported = [i for name, i in incidents.items() if i in urgent_all and name in reported]
     return {"precision": pct(len(declared) - len(false_dispatches), len(declared)),
             "recall_P1_P2": pct(sum(1 for i in urgent_all if i["cases"]), len(urgent_all)),
             "recall_P1_P2_detectable": pct(sum(1 for i in urgent if i["cases"]), len(urgent)),
+            "recall_P1_P2_reported": pct(sum(1 for i in urgent_reported if i["cases"]), len(urgent_reported)),
             "false_dispatches": len(false_dispatches),
             "false_dispatches_per_100_cases": pct(len(false_dispatches), len(declared))}
 
@@ -262,12 +297,12 @@ def summarize(events: list[dict], cfg: dict, oracle: dict | None = None) -> dict
     incidents, case_incident = incident_table(events, radius)
     by_kind = group_by_kind(events)
     declared = {e["case"]: e for e in by_kind["case_declared"]}
-    located = {e["case"]: e["location"] for e in by_kind["case_located"]}
-    false_dispatches = [c for c, loc in located.items()
-                        if c in declared and nearest_incident(incidents, loc, radius) is None]
+    located = {e["case"]: e for e in by_kind["case_located"]}
+    false_dispatches = [c for c, e in located.items() if c in declared and match_incident(incidents, e, radius) is None]
     urgent = [i for i in incidents.values() if i["priority"] in ("P1", "P2") and i["detectable"]]
     p1 = [i for i in urgent if i["priority"] == "P1"]
     p1_names = {name for name, i in incidents.items() if i["priority"] == "P1" and i["detectable"]}
+    reported = reported_incidents(incidents, by_kind, cfg["metrics"]["report_window_s"])
     survival = survival_values(p1, cfg)
     m9, b0 = oracle_metrics(incidents, p1_names, oracle)
     cpr_events = by_kind["cpr_started"]
@@ -276,7 +311,7 @@ def summarize(events: list[dict], cfg: dict, oracle: dict | None = None) -> dict
         **counts(incidents, by_kind, declared),
         "M1_verification_latency_s": {"median": median(since_collapse(urgent, "t_declared")),
                                       "p90": p90(since_collapse(urgent, "t_declared"))},
-        "M2_verification": verification_metrics(incidents, declared, false_dispatches),
+        "M2_verification": verification_metrics(incidents, declared, false_dispatches, reported),
         "M3_time_to_cpr_s": {"median": median(since_collapse(p1, "t_cpr_started")),
                              "by_bystander_pct": pct(by_bystander, len(cpr_events))},
         "M4_time_to_aed_s": {"median": median(since_collapse(p1, "t_aed_attached")),
