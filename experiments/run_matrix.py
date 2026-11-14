@@ -9,7 +9,8 @@ servidores próprios mantêm os runs independentes. No Windows o script impede a
 
 Cada run vai para runs/<matriz>/<cenário>-<variante>-s<seed>/. O runs.csv tem uma linha por job da
 matriz pedida (com --only também), lida do summary.json no disco: as métricas, a validade, as
-violações de regras e o commit do código. A matriz main escreve-o em results/ e as outras (smoke) em
+violações de regras e o commit do código (o último que mexeu em src/, scenarios/
+ou experiments/). A matriz main escreve-o em results/ e as outras (smoke) em
 runs/<matriz>/. Voltar a correr o script salta os runs válidos do mesmo commit, por isso uma matriz
 interrompida pode ser retomada. Os resultados finais têm de vir todos do mesmo commit, por isso o
 script recusa arrancar com alterações por commitar (salvo --allow-dirty).
@@ -173,7 +174,9 @@ def main() -> int:
     if git("status", "--porcelain", "--", "src", "scenarios", "experiments") and not args.allow_dirty:
         print("uncommitted changes in src/, scenarios/ or experiments/: commit first (or --allow-dirty)")
         return 2
-    commit = git("rev-parse", "HEAD")
+    # O último commit que mexeu no código (o mesmo que o run.py grava): commits só de documentação
+    # feitos com a matriz a correr não obrigam a repetir os runs.
+    commit = git("log", "-1", "--format=%H", "--", "src", "scenarios", "experiments")
     seeds = parse_seeds(args.seeds)
     all_jobs = [(sc, var, ov, seed) for sc, var, ov in MATRICES[args.matrix] for seed in seeds]
     wanted = [job for job in all_jobs if not args.only or job[0] in args.only.split(",")]

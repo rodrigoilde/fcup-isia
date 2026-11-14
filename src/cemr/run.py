@@ -64,14 +64,22 @@ def build(cfg: dict, out_dir: Path, xmpp_port: int):
     return ctx, layout, trace, agents
 
 
+CODE_PATHS = ("src", "scenarios", "experiments")
+
+
 def code_version() -> dict:
-    """Commit git do código e se havia alterações por commitar em src/, scenarios/ ou experiments/."""
+    """Versão do código: o último commit que mexeu em src/, scenarios/ ou experiments/, e se havia
+    alterações por commitar nessas pastas.
+
+    Os commits só de documentação (relatório, slides) não mudam a versão, por isso não obrigam a
+    repetir os runs da matriz.
+    """
     def git(*args: str) -> str:
         result = subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True, text=True)
         return result.stdout.strip()
 
-    return {"commit": git("rev-parse", "HEAD"),
-            "dirty": bool(git("status", "--porcelain", "--", "src", "scenarios", "experiments"))}
+    return {"commit": git("log", "-1", "--format=%H", "--", *CODE_PATHS),
+            "dirty": bool(git("status", "--porcelain", "--", *CODE_PATHS))}
 
 
 def write_inputs(cfg: dict, out_dir: Path, layout, trace: dict) -> None:

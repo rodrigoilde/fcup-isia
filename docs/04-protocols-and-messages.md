@@ -23,7 +23,7 @@ Every message is a FIPA-ACL message carried by SPADE.
 
 | FIPA-ACL parameter | SPADE field | Value |
 |---|---|---|
-| `:sender` / `:receiver` | `sender` / `to` | JID `<run>-<pseudonym>@localhost`. Pseudonyms such as `hub6`, `vol23`, `dev26` carry no civil identity (D7) |
+| `:sender` / `:receiver` | `sender` / `to` | JID `<pseudonym>@localhost` (each run has its own XMPP server). Pseudonyms such as `hub6`, `vol23`, `dev26` carry no civil identity (D7) |
 | performative | metadata `performative` | `inform`, `cfp`, `propose`, `accept-proposal`, `request`, `agree`, `refuse`, `query-ref`, `query-if`, `subscribe`, `cancel`, `failure`, … |
 | `:protocol` | metadata `protocol` | e.g. `P08-CallForResponders` |
 | `:ontology` | metadata `ontology` | `cemr-v1` (`src/cemr/protocol/ontology.py`) |

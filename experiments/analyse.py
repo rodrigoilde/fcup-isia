@@ -223,7 +223,7 @@ def plot_bars(table: pd.DataFrame, value: str, variants: list[str], title: str, 
         style_axis(ax, f"{label} ({unit})")
     for ax in list(axes.flat)[len(labels):]:
         ax.set_visible(False)
-    if len(variants) > 1:                                        # uma só série não precisa de legenda
+    if len(variants) > 1 or value == "mean_diff":               # nas diferenças diz sempre qual é a variante
         handles = [plt.Rectangle((0, 0), 1, 1, color=colours[v]) for v in variants]
         fig.legend(handles, [VARIANT_NAMES.get(v, v) for v in variants], loc="lower center", ncol=len(variants),
                    frameon=False, fontsize=9, labelcolor=INK)
