@@ -172,11 +172,11 @@ cell)`. Each piece of evidence `e` from source `s` adds `trust(s) · log LR(type
 
 **Beta reputation** (Jøsang & Ismail, 2002), kept per stable pseudonym.
 
-- **Score.** `trust = (α + 1) / (α + β + 2)`, plus the number of observations.
+- **Score.** `trust = (α + 1) / (α + β + 2)`, the mean of the Beta distribution.
 - **Updates.** Outcomes labelled by P21 (EMS clinical confirmation is the reference label) update α
   and β. Both decay towards the prior at rate `γ` per hour.
 - **New pseudonyms** start at the prior (OS13), so changing pseudonym gives no advantage.
-- **Gossip.** Neighbouring hubs exchange `(pseudonym, α, β, age)` summaries periodically through P23.
+- **Gossip.** Neighbouring hubs exchange `(pseudonym, α, β)` summaries periodically through P23.
   A recommendation from hub `h` is discounted by the hub's own trust in `h` before it is merged.
 - **Variant.** Reputation can be switched off (all trust = prior). This is compared in C2 and C5.
 
@@ -187,7 +187,10 @@ cell)`. Each piece of evidence `e` from source `s` adds `trust(s) · log LR(type
     reputation needs continuity.
   - *Subjects* (the patient, a reporting witness) get a **per-case pseudonym**.
 - **Location granularity.**
-  - Alerts, calls for responders and bids carry **only the cell**.
+  - Calls for responders and bids carry **only the cell**.
+  - Alerts (P01) carry the cell and a **coarse area**: the source's position rounded to the nearest
+    crossing of the 100 m street grid. A confirmation (P03) carries the area of the observation it
+    confirms; the corroboration query itself carries no location.
   - The precise location is obtained by the coordinator through **P24 `RequestDisclosure`** from the
     PrivacyGuardian on the subject's device: the citizen device for sensor alerts, the witness's phone
     for human reports.
@@ -199,6 +202,17 @@ cell)`. Each piece of evidence `e` from source `s` adds `trust(s) · log LR(type
   re-requests them through P24.
 - **Variant.** Disclosure directly from the subject's guardian to the awardees (skipping the
   coordinator) is optional. It trades M11 against M8.
+- **Revision after the first experiments (coarse area).** The first design gave the hub only the cell
+  until P24. A hub then merged every alert of the same cell within 90 s into one candidate, and in the
+  surge scenario (C3) this fused different patients into one case: the second patient got no volunteer
+  and no ambulance. With the 100 m area, alerts merge only if their areas are at most 100 m apart
+  (Manhattan). The cost is that the hub learns, at alert time, the crossing (~100 m) instead of the cell
+  (~1 km). The hub is fixed infrastructure and receives the precise location through P24 in every
+  declared P1/P2 case anyway, and metric M11 is unchanged because it counts the recipients of the
+  precise location. With merging by cell, the recall of detectable P1/P2 incidents in C3 was 64.0 %
+  (matrix at commit `6df23fb`, seeds 1–5); `results/summary.md` has the value with the 100 m area. Part
+  of the gap is not merging at all: 20 % of witnesses never report (`p_report = 0.8`), which is why
+  metric M2 also reports the recall over incidents that a source did report.
 
 ### D8 — Failure recovery
 
@@ -223,10 +237,17 @@ cell)`. Each piece of evidence `e` from source `s` adds `trust(s) · log LR(type
 - **Alerts to a dead hub (F6).** A source that gets no `AlertAck` within 10 s re-sends the alert to
   the hub's successors in the same order, and the successor serves that cell.
 - **Duplicates across cell borders (F14).** On opening a candidate, a hub announces it to its
-  neighbours with **P26 `CandidateOpen`** (cell, time, event type).
-  - If a neighbour holds an overlapping candidate (adjacent cell, within the merge window), the
-    candidate **opened first** keeps ownership. Ties go to the lower hub id.
-  - The other hub forwards its evidence as alerts and drops its copy.
+  neighbours with **P26 `CandidateOpen`** (cell, area, time, event type).
+  - Two candidates are the same incident if they were opened within the merge window and their areas
+    are at most 100 m apart. The candidate **opened first** keeps ownership; ties go to the lower hub id.
+  - The hub with the newer candidate forwards its alerts (`CandidateMerge`) and drops its copy.
+  - The hub with the older candidate **answers with its own notice**. Without this answer the decision
+    was one-sided: a hub that opened its candidate after its neighbour's notice had arrived never heard
+    of the older one, and the patient got two cases (two dispatches). This happened, for instance, when
+    an `AlertAck` was lost and the source re-sent the same alert to the hub's successor (F6). Only the
+    holder of the older candidate answers, so the exchange cannot loop.
+  - The rule checker has a rule for this (DUP: no incident handled by two declared cases), because a
+    duplicate is not a false dispatch and the metrics alone would not show it.
 
 ## 3. Completed role model
 
@@ -250,7 +271,7 @@ roles gain the duties the structure creates.
 | R8 EMSUnit | EMS agent | Partner of P10 is any hub; serves the case it committed to (preemption OS9) |
 | R9 BystanderGuide | Bystander's phone (local app) | Runs **on the witness device**, so guidance continues without network (F13). P16/P17 are local exchanges, logged like any protocol |
 | R10 OnSceneHelper | Bystander's phone (human model) | Unchanged |
-| R11 ReputationManager | AED hub | One table per hub. Adds P23 gossip with neighbours only. Receives P21 locally, or forwarded from the hub where a volunteer is registered |
+| R11 ReputationManager | AED hub | One table per hub. Adds P23 gossip with neighbours only. Receives P21 locally, from the hub's own cases. P22 is a read of the same table |
 | R12 PrivacyGuardian | Citizen device / bystander's phone | Unchanged; one guardian per data subject, on the subject's own device |
 
 The mapping from roles to SPADE agent classes (the Gaia *agent model*) is fixed in the detailed design.
@@ -292,12 +313,12 @@ logged. Message sequences and JSON schemas are specified in `04-protocols-and-me
 | P18 | TakeoverFromBystander | volunteer → helper and guide | request → inform | network |
 | P19 | HandoverToEMS | EMS → volunteer or guide | request → inform | network |
 | P20 | CloseCase | coordinator (or verifier) → participants | inform (one-to-many) | network |
-| P21 | OutcomeFeedback | coordinator → reputation manager | inform | local, or to the volunteer's home hub |
-| P22 | QueryTrust | verifier / coordinator → reputation manager | query-ref → inform | local, or to a neighbour hub |
+| P21 | OutcomeFeedback | coordinator → reputation manager | inform | local |
+| P22 | QueryTrust | verifier / coordinator → reputation manager | read of the hub's own trust table (no messages) | local |
 | P23 | ShareReputation | hub → neighbour hubs | inform, periodic, both directions | network |
 | P24 | RequestDisclosure | coordinator / EMS → subject's guardian | FIPA-Request: request → agree / refuse → inform | network |
 | **P25** | **RegisterInCell** | volunteer / witness → hub | FIPA-Subscribe: subscribe → agree; cancel on leaving | network |
-| **P26** | **CandidateOpen** | hub → neighbour hubs | inform; on overlap, inform(merge) | network |
+| **P26** | **CandidateOpen** | hub → neighbour hubs | inform; the older candidate's hub answers with inform; the newer one sends inform(merge) | network |
 | **P27** | **ReplicateCase** (with heartbeat) | owner hub → successor | inform → inform(ack) | network |
 | **P28** | **TakeOverCase** | successor → case participants | inform | network |
 
@@ -322,8 +343,10 @@ Every message carries:
 
 ## 6. Where each organisational rule is enforced
 
-`check.py` (sprint 2) re-verifies every rule from the event log after each run. The "enforced by"
-column is the mechanism that is meant to make violations impossible at run time.
+`src/cemr/metrics/check.py` re-verifies every rule from the event log after each run (safety rules in
+`rules_safety.py`, liveness rules in `rules_liveness.py`). The "enforced by" column is the mechanism
+that is meant to make violations impossible at run time. DUP is not a rule of the analysis: it was
+added to make duplicate cases visible (D8).
 
 | Rule | Enforced by |
 |---|---|
@@ -343,12 +366,13 @@ column is the mechanism that is meant to make violations impossible at run time.
 | OS5 need to know | PrivacyGuardian policy; coordinator embeds location only in P09/P10 |
 | OS6 ambulance cancellation | Coordinator cancels P10 only on a human-confirmed false alarm or an EMS decision |
 | OS7 alerter ≠ verifier | Structural: hubs never raise alerts |
-| OS8 load caps | Volunteer refuses beyond `A_max`/`K_max`; hub ranking also penalises recent load |
+| OS8 load caps | Volunteer app refuses calls beyond `A_max` alerts per hour or `K_max` recent awards |
 | OS9 preemption only P3 → P1 | EMS agent |
 | OS10 auditability | Base agent logs every state change and disclosure |
 | OS11 retention | PrivacyGuardian purge timer `T_ret` |
 | OS12 guidance from protocol only | Guide selects steps only from `guidanceProtocol` |
 | OS13 admission | Volunteers register with a qualification credential issued by the scenario; hubs are provisioned |
+| DUP no duplicate cases | Alert merging by area (D7) and the symmetric P26 answer (D8) |
 
 ## 7. How the structure handles the failure modes
 
@@ -361,12 +385,12 @@ column is the mechanism that is meant to make violations impossible at run time.
 | F7 volunteer no-show or late | ETA + δ monitor → new call (OL6); redundancy; reputation |
 | F8 AED unavailable | `failure` in P12 → coordinator picks another AED |
 | F9 simultaneous incidents | Priority-ordered calls; OS2, OS3, OS9 |
-| F10 ambulance late or unavailable | P10 widens the radius; volunteers keep CPR going (OS6) |
+| F10 ambulance late or unavailable | P10 is repeated with backoff while no unit is free; volunteers and the guided witness keep CPR going (OS6) |
 | F11 witness gives up | `T_silence` detection in the local guide; P13 to the coordinator; reinforcement |
 | F12 personal-data leak | Mediated disclosure (P24), audited, purged (OS5, OS11) |
 | F13 cell without network | Guidance runs on the witness device; store-and-forward on reconnection; 112 remains the primary path (A7) |
-| F14 duplicate cases | P26 with first-opened-wins |
-| F15 alert spam with fresh pseudonyms | Prior trust for new pseudonyms (OS13); per-pseudonym rate limit at the hub |
+| F14 duplicate cases | P26 with first-opened-wins and an answer from the older candidate's hub |
+| F15 alert spam with fresh pseudonyms | Prior trust for new pseudonyms (OS13); repeat offenders lose trust after the first EMS confirmation (D6, scenario C5) |
 
 ## 8. Constraints from the platform (sprint 0 spike)
 
@@ -392,6 +416,7 @@ The architecture exposes these switches. Scenarios and baselines (analysis §8.2
 - sensor policy `AlertFirst | ConfirmFirst`;
 - redundancy `k ∈ {1, 2, 3}`;
 - reputation on/off;
+- bystander guidance on/off (separates its effect from allocation in baseline B1);
 - thresholds `τ` fixed or adaptive (optional);
 - disclosure via coordinator or direct (optional);
 - allocation `contract-net | naive` (baseline B1).

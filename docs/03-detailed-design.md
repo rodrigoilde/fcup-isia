@@ -34,6 +34,18 @@ grouping into agents follows **where the data lives**:
 - **One VolunteerAgent plays R5 or R6** depending on the task awarded. A volunteer is the same person
   whatever the task, so OS2 (one commitment at a time) is a property of a single agent.
 
+**Where the code is** (`src/cemr/agents/`). Each agent type has one module; the larger ones are split by
+role or by state, so that no module is much longer than 300 lines:
+
+| Agent type | Modules |
+|---|---|
+| all | `base.py` (`CEMRAgent`: routing, send path, P01 with fallback, P25), `conversation.py` (router, workers, periodic behaviours, conversation FSMs) |
+| `AEDHubAgent` | `aed_hub.py` (service handlers, P01 merging, P26), `hub_failover.py` (P27/P28), and the case FSM in `case_*.py` (§2.4) |
+| `CitizenDeviceAgent` | `citizen_device.py` |
+| `BystanderAgent` | `bystander.py` (WitnessReporter, PrivacyGuardian), `bystander_guide.py` (BystanderGuide, OnSceneHelper) |
+| `VolunteerAgent` | `volunteer.py` (bidding, OS2, OS8), `volunteer_mission.py` (mission FSM) |
+| `EMSAgent` | `ems.py` |
+
 ## 2. Inside a SPADE agent
 
 ### 2.1 Routing
@@ -45,13 +57,16 @@ template), and all other behaviours use a template that never matches. The route
 1. **Service requests**, whatever the thread:
    - registrations (P25);
    - AED reservation, retrieval and release (P11, P12, P20 `AEDRelease`);
-   - trust queries and reputation summaries (P22, P23);
+   - reputation summaries (P23);
    - candidate notices (P26);
    - heartbeats and case snapshots (P27);
    - disclosure requests (P24).
 2. **Messages of an open conversation**, by `thread`, to that conversation's FSM.
 3. **Everything else** to the agent's `on_message`: new alerts, calls for proposals, awards, guidance
    activations.
+
+P22 (QueryTrust) has no messages: the coordinator and the reputation manager are the same agent, so the
+coordinator reads the hub's trust table directly.
 
 ### 2.2 Behaviour types
 
@@ -109,6 +124,16 @@ stateDiagram-v2
 The same `CaseFSM.handle` processes a case message in every state. A late witness report after
 declaration still updates the belief, and if a human cancellation makes the belief fall below 0.3,
 the case is **retracted** (P07, §4.1).
+
+| Module | Contents |
+|---|---|
+| `case_record.py` | `CaseRecord` (resource `incidentCase`), `AwardInfo`, the state names and the P27 snapshot conversion |
+| `case_fsm.py` | `CaseFSM`: builds the states and maps each message type to its handler |
+| `case_verify.py` | VERIFY and DISCARD; handlers of P01–P05 and P26 |
+| `case_dispatch.py` | DISPATCH; P24 location, P10 ambulance, P15 help notice |
+| `case_awards.py` | The Contract Net with volunteers: P08 calls, P11 reservation, P09 awards (also used in TRACK) |
+| `case_track.py` | TRACK; P13 statuses, OL6 re-recruitment, P14 releases, P07 retraction |
+| `case_close.py` | CLOSE; P20 closure and P21 outcome labels |
 
 ### 2.5 Volunteer and ambulance missions
 
@@ -205,9 +230,9 @@ organisational rules.
 
 | Service | Inputs | Outputs | Pre-condition | Post-condition |
 |---|---|---|---|---|
-| Open or join candidate | `AlertReport` | `AlertAck`; candidate; P26 notice | Alert of this cell (or of a dead neighbour's) | Merged into the open candidate of the same cell within 90 s, else a new candidate |
-| Resolve duplicates | P26 notice | `CandidateMerge` to the keeper; alert relay | Overlapping candidate in an adjacent cell | The candidate opened first keeps ownership; the other forwards its alerts and discards |
-| Corroborate | candidate | P03 queries, P04 questions | Candidate open | Evidence fused; every source counted once |
+| Open or join candidate | `AlertReport` | `AlertAck`; candidate; P26 notice | Alert of this cell (or of a dead neighbour's) | Merged into an open candidate of the same cell opened within 90 s whose area is at most 100 m away, else a new candidate |
+| Resolve duplicates | P26 notice | `CandidateMerge` to the keeper, or our own notice back; alert relay | Candidate of the same incident (within 90 s, areas at most 100 m apart) | The candidate opened first keeps ownership; its hub answers with its notice; the other forwards its alerts and discards |
+| Corroborate | candidate | P03 queries, P04 questions | Candidate open | Evidence fused; every source counted once; a confirmation from another area is ignored |
 | Activate guidance | complete triage, not responding | P05 | Witness answered the triage (OL5) | Guide active on the witness's phone (OL3) |
 | Declare | belief, sources | `case_declared`, P06 | `p ≥ τ_declare(p)` ∧ OS4 | One owner (OS1); evidence and weights audited (OS10) |
 | Discard | belief, clock | `candidate_discarded` | `p < 0.03` ∨ `W_max` expired ∨ merged | No dispatch; an active guide is closed |
@@ -227,7 +252,7 @@ organisational rules.
 |---|---|---|---|---|
 | Detect | sensor event (perception) | event type, local confidence | — | Raw signals never leave the device |
 | Alert | event, policy | P01 (pending / no_response), P02 | AlertFirst for P1-like signals, ConfirmFirst otherwise (adaptive) | Acknowledged by the cell's hub or, failing that, its successor (F6) |
-| Summarise evidence | `CorroborationQuery` | `CorroborationReply` | — | Only a verdict and a confidence are sent |
+| Summarise evidence | `CorroborationQuery` | `CorroborationReply` | — | Only a verdict, a confidence and the alert's area (~100 m) are sent |
 | Disclose (guardian) | `DisclosureRequest` | `Disclosure` / refusal | Hub or EMS of an active case; P1/P2 or consent | Logged; purged on closure or after the fallback retention |
 
 ### BystanderAgent
@@ -235,7 +260,7 @@ organisational rules.
 | Service | Inputs | Outputs | Pre-condition | Post-condition |
 |---|---|---|---|---|
 | Report | collapse seen (perception) | P01 witness report | Chooses to report (`p_report`) | Re-registered in the scene's cell |
-| Corroborate | `CorroborationQuery` | confirm / no_data | — | Confirms only its own cell and time window |
+| Corroborate | `CorroborationQuery` | confirm / no_data | — | Confirms only its own cell and time window, with the scene's area |
 | Answer triage | `TriageQuestion` | `TriageAnswer` | At the scene (else `unknown`) | Silence counts as unknown |
 | Guide | P05, P15, P18, P19 | P16 instructions, P13 WITNESS_SILENT, `ActionSummary` | At the scene, no other guidance active | Instructions only from `guidanceProtocol` (OS12) |
 | Disclose own location | `DisclosureRequest` | `Disclosure` / refusal | At the scene; same policy | Logged; purged on closure or fallback |
@@ -259,8 +284,8 @@ organisational rules.
 
 ## 4. Decision logic
 
-All decision logic lives in pure modules under `src/cemr/behaviours/` and is unit-tested
-(`tests/test_logic.py`, `tests/test_sprint2.py`).
+All decision logic lives in pure modules under `src/cemr/behaviours/` and is unit-tested without SPADE
+(`tests/test_verification.py`, `test_allocation.py`, `test_privacy_reputation.py`, `test_guidance.py`).
 
 ### 4.1 Evidence fusion and priority (D5, `verification.py`)
 
@@ -295,7 +320,7 @@ The case takes the **most severe** of these.
   wearer's "I'm fine", or a witness retracting) is retracted. Volunteers are released, and so is the
   ambulance, because a human confirmed the false alarm (OS6).
 
-### 4.2 Contract Net and re-allocation (D4, `contract_net.py`, `case_fsm.py`)
+### 4.2 Contract Net and re-allocation (D4, `contract_net.py`, `case_awards.py`)
 
 `score = ETA × (1 + 0.5 · [below the needed qualification]) / (trust / 0.5)`; lower is better.
 
@@ -379,18 +404,18 @@ skipped. The guide can only choose step ids from this table.
 | F1 sensor false positive | wearer answers; corroboration | P02, OS4, reputation | `citizen_device`, `verification`, P21 |
 | F2 false negative, person alone | — | third OS4 branch (automatic alert + silent wearer) | `verification.os4_branch` |
 | F3 sensor drift | trust of the source falls | weight by trust; decay | `reputation`, C2 |
-| F4 wrong or misread human report | incoherent triage; EMS finds nobody | re-ask once, then ignore; reputation; prior trust for new witnesses | `case_fsm.on_triage`, P21, C2 |
-| F5 lost or late messages | deadlines | triage re-ask (12 s), P24 re-request (also during TRACK), P14 resend, idempotent ids, mission time cap, double closure | `case_fsm`, `volunteer` |
-| F6 hub failure | heartbeats stop | successor takeover (P27/P28); sources fall back to the successor | `aed_hub`, `base.raise_alert`, C4 |
-| F7 volunteer no-show or late | ETA + δ, WITHDRAWN | re-recruitment (OL6); release of surplus (OL8) | `case_fsm.check_progress` |
-| F8 AED missing or locked | `AED_MISSING`, registry state | AED excluded; new FETCH call | `case_fsm`, `aed_custody` |
+| F4 wrong or misread human report | incoherent triage; EMS finds nobody | re-ask once, then ignore; reputation; prior trust for new witnesses | `case_verify.recheck_triage`, P21, C2 |
+| F5 lost or late messages | deadlines | triage re-ask (12 s), P24 re-request (also during TRACK), P14 resend, idempotent ids, mission time cap, double closure | `case_verify`, `case_track`, `volunteer_mission` |
+| F6 hub failure | heartbeats stop | successor takeover (P27/P28); sources fall back to the successor | `hub_failover`, `base.raise_alert`, C4 |
+| F7 volunteer no-show or late | ETA + δ, WITHDRAWN | re-recruitment (OL6); release of surplus (OL8) | `case_track.check_progress` |
+| F8 AED missing or locked | `AED_MISSING`, registry state | AED excluded; new FETCH call | `case_awards`, `aed_custody` |
 | F9 simultaneous incidents | — | one commitment per responder (OS2), one reservation per AED (OS3) | C3 |
-| F10 ambulance late or unavailable | no proposals | retry with backoff (30 → 120 s); guided CPR continues | `case_fsm.award_ambulance` |
-| F11 witness gives up | silence for T_silence | repeat, WITNESS_SILENT, one more volunteer on P1 | `bystander`, `case_fsm` |
-| F12 personal-data leak | audit log | need-to-know policy; purge; rule check OS5/OS11 | `privacy`, `check.py` |
+| F10 ambulance late or unavailable | no proposals | retry with backoff (30 → 120 s); guided CPR continues | `case_dispatch.award_ambulance` |
+| F11 witness gives up | silence for T_silence | repeat, WITNESS_SILENT, one more volunteer on P1 | `bystander_guide`, `case_track` |
+| F12 personal-data leak | audit log | need-to-know policy; purge; rule check OS5/OS11 | `privacy`, `rules_safety` |
 | F13 cell without network | — | local guidance; fallback hub; 112 remains (A7) | `bystander`, C4 |
-| F14 duplicate case across borders | P26 notices | first opened keeps; relays alerts | `aed_hub` |
-| F15 alert spam with fresh pseudonyms | — | prior trust (OS13); OS4 still needs evidence | (C5, optional) |
+| F14 duplicate case across borders | P26 notices | first opened keeps; its hub answers the newer one's notice; relays alerts; rule DUP | `aed_hub`, `verification.notice_decision` |
+| F15 alert spam with fresh pseudonyms | EMS finds nobody | prior trust (OS13); OS4 still needs evidence; repeat offenders lose trust | `reputation`, scenario C5 |
 
 ## 5. Behaviour models of the humans and the environment
 
@@ -399,7 +424,7 @@ Parameters are in `scenarios/defaults.toml`, with the analysis assumption they i
 | Model | Behaviour |
 |---|---|
 | Wearer (A4) | A conscious wearer answers "Are you OK?" with p = 0.9 within 3–25 s; a P1/P2 patient never answers. |
-| Witness (A5) | Reports with p = 0.8 after 20–60 s, standing 5–15 m from the patient. Answers each triage question with p = 0.95 and misreads the patient's state with p = 0.1 (0.2 in C2). In C2 some citizens also "see" a collapse that is not one (a sleeping person), and answer accordingly. |
+| Witness (A5) | Reports with p = 0.8 after 20–60 s, standing 5–15 m from the patient. Answers each triage question with p = 0.95 and misreads the patient's state with p = 0.1 (0.2 in C2). In C2 some citizens also "see" a collapse that is not one (a sleeping person), and answer accordingly. In C5 two citizens (pranksters) report such scenes about 4 times per hour each, always. |
 | OnSceneHelper (A5) | Starts each instruction after 3–8 s. Gives up with p = 0.03 per instruction, plus 0.03 per compression cycle after the second (fatigue). Says it is tired from the third cycle. |
 | Volunteer (A6) | Accepts a call with p = 0.7 after 3–8 s. An awardee fails to show with p = 0.05 (half withdraw on the way, half go silent). Real travel takes 0–30 % longer than estimated. |
 | Sensors (A2) | Detect a real collapse with p = 0.9 after 10–20 s; 0.02 false positives per device per hour. In C2 there are ×5 false positives and 4 drifting devices with 1 per hour. |
@@ -447,9 +472,10 @@ methods that follow the environment–role matrix (analysis §5.4).
 | Likelihood ratios | — | `scenarios/defaults.toml` | The analysis fixed the method, not the numbers |
 | Priority under conflicting evidence | not specified | most severe active source; incoherent triage ignored | Safety (RNF5); see §4.1 |
 | Retraction threshold | not specified | belief < 0.3 after a human cancellation | P07 needs a trigger |
+| Merging alerts (`_MergeCandidates`) | same candidate | same cell, within 90 s and areas at most 100 m apart | Merging by cell fused different patients in C3 (02 §D7) |
 | N_need(p) | named, no value | P1: 2, P2: 1 | OL8 |
 | Retries | "deadlines and repetition" | resend after 20 s, at most twice; triage deadline 12 s | F5; witnesses answer in 3–10 s, so a retry fits inside W_max(P1) |
-| EMS response | — | 240 s + 30 km/h | ~6–9 min in C1; to be confirmed against a source (e.g. INEM data) |
+| EMS response | — | 240 s + 30 km/h | ~6–9 min in C1. An assumption: we found no source for urban Portuguese response times, which is a stated limitation |
 | Enumerated values | Portuguese | English | They are code identifiers; the mapping is in 04 §5 |
 
 Time metrics are computed over **detectable** incidents (a wearable or a witness was present).
@@ -460,11 +486,100 @@ counts against recall.
 
 | Check | What it covers |
 |---|---|
-| Unit tests (`tests/test_logic.py`, `tests/test_sprint2.py`, 36 tests) | Fusion and OS4; the priority rule; Contract Net; disclosure; AED custody; reputation with gossip and decay; guidance steps; Larsen; network FIFO; trace reproducibility; payload round trips; the rule checker catching injected violations |
+| Unit tests (`tests/test_*.py`, 71 tests, `pytest -m "not slow"`) | Fusion and OS4; the priority rule; alert merging by area and the P26 decision; Contract Net; disclosure; AED custody; reputation with gossip and decay; guidance steps; Larsen; network FIFO; trace reproducibility; the C5 pranksters; payload round trips and the FIPA envelope; the metrics; the rule checker catching injected violations |
 | End-to-end tests (`tests/test_end_to_end.py`) | C1: the OL1 sequence, OL2, OL7, OS5, zero rule violations, valid run. C4: the takeover of a crashed hub's case within 40 s, P28 reaching participants, the crashed hub silent, no orphaned cases |
-| Rule checker (`python -m cemr.metrics.check runs/<run>`) | Re-derives OS1–OS6, OS8, OS9, OS11–OS13, OL1–OL3, OL5–OL7 and OL9 from the audit log after every run. It runs inside `run.py` and is reported in `summary.json` |
+| Rule checker (`python -m cemr.metrics.check runs/<run>`) | Re-derives OS1–OS6, OS8, OS9, OS11–OS13, OL1–OL3, OL5–OL7, OL9 and DUP (no duplicate cases) from the audit log after every run. It runs inside `run.py` and is reported in `summary.json` |
 | Validity checks (`run.py`) | Discards runs in which the machine slept or the event loop stalled |
+| Code version (`run.py`, `run_matrix.py`, `analyse.py`) | Every summary records the git commit; the matrix refuses to start with uncommitted changes and the analysis refuses a `runs.csv` that mixes commits |
 
 **OS9** (only a P3 commitment may be preempted, for a P1) holds vacuously: P3 cases get contact and
 guidance but no ambulance (analysis §2.2), so there is nothing to preempt. The checker verifies that
 no P3 case ever receives an ambulance.
+
+## 9. Positioning against the course concepts
+
+This section names, in the terms of the course, what the design does. It also says where the design
+stops short of a textbook mechanism.
+
+### 9.1 Agent types and architectures
+
+| Agent | Type (Russell and Norvig, 2022) | Why |
+|---|---|---|
+| `CitizenDeviceAgent` | Model-based reflex | Keeps a small state (`recent_alerts`) and acts by fixed rules: detection thresholds and the alert policy |
+| `VolunteerAgent` | Utility-based | The app picks the AED and computes the ETA that minimise arrival time; accepting a call is a stochastic human model (`p_accept`) |
+| `EMSAgent` | Utility-based | Bids its ETA and serves the case it is awarded |
+| `AEDHubAgent` | Hybrid, layered (Wooldridge, 2009) | Reactive layer: the router, AED custody and heartbeats answer at once. Deliberative layer: one FSM per case, with Bayesian fusion of evidence and a Contract Net |
+| `BystanderAgent` | Human model plus the guidance app | Layered behaviour: fatigue and giving up override the current instruction, much as a higher layer suppresses a lower one in a subsumption architecture |
+
+The environment is partially observable (the hub never sees a patient), stochastic, dynamic,
+sequential, continuous and multi-agent. The agents cooperate, except the false sources of C5, which
+do not.
+
+**Why not BDI.** The hub could be read as a BDI agent:
+
+- beliefs are the fused `Belief` of each candidate and the `TrustTable`;
+- desires are the open candidates;
+- intentions are the awarded commitments, kept until the volunteer is on scene, released or failed.
+  This is single-minded commitment in Wooldridge's terms: an intention is dropped only when it is
+  achieved or believed impossible (failure, or late past ETA + δ).
+
+We kept plain SPADE behaviours instead of a BDI interpreter for two reasons. First, every deadline of
+the protocols (W_max, proposal and triage deadlines, leases) is explicit in the code and can be unit
+tested. Second, the organisational rules are re-checked on the audit log after each run, which needs
+every decision to be an event, not a step of a reasoning cycle.
+
+### 9.2 The Contract Net as an auction (mechanism design)
+
+- **Type.** The volunteer Contract Net (P08/P09) is a **reverse sealed-bid auction with a scoring
+  rule**. The bid is the ETA. The score is `ETA × (qualification penalty) / (trust / prior)` and the
+  lowest wins (`contract_net.offer_score`). There are no prices and no payments.
+- **Incentives.** It is **not** a Vickrey auction: a second-price rule needs payments, and there are
+  none. Truthful bidding is encouraged ex post by reputation: a volunteer who arrives after ETA + δ
+  gets a negative P21 label, and its future scores are divided by a lower trust. With δ = 120 s a
+  volunteer could under-declare its ETA by up to two minutes at no cost. This is a limitation, softened
+  by the fact that the ETA is computed by the volunteer's app, not typed by the person.
+- **Rounds.** Widening the call to ring 2 (D3) and the re-allocation of OL6 open **new rounds with new
+  participants**. This is not the FIPA Iterated Contract Net, in which the initiator sends a revised
+  call to the same participants.
+- **Winner determination.** `assign` is greedy: the FETCH_AED task first (the best bid whose AED can be
+  reserved), then the GO_TO_PATIENT tasks, one task per volunteer, at most N_max. A volunteer and an
+  AED form a bundle, so the optimal allocation is a combinatorial problem. Metric M9, the gap to the
+  oracle B0, measures what the greedy choice and the privacy-preserving ETA (to the cell centre) cost.
+- **Ambulance (P10).** A first-price rule on ETA alone, again without payments.
+
+### 9.3 Aggregating priorities (social choice)
+
+`case_priority` aggregates the priorities that the sources of a case support with a **maximum
+severity** rule, a precautionary veto: the case takes the most severe priority that any active source
+supports.
+
+Example: three sources support P3 and one supports P1.
+
+| Rule | Result |
+|---|---|
+| Plurality | P3 |
+| Borda, with each source ranking the priorities by distance to its own (2, 1, 0 points) | P3 (6 points against 4 for P2 and 2 for P1) |
+| Condorcet winner (pairwise majority) | P3 (beats P2 and P1 three to one) |
+| Ours (maximum severity) | P1 |
+
+- **Properties it keeps.** Unanimity (if every source supports the same priority, that is the result)
+  and anonymity (the result does not depend on which source said what).
+- **Properties it breaks.** The majority criterion and the Condorcet winner, as the example shows. It is
+  also manipulable: a single source can raise the priority. OS4 limits the damage, because a
+  declaration still needs independent evidence, and so does reputation (scenario C5).
+- **Why.** Safety (RNF5): treating a P1 as a P3 is far more costly than the opposite. An earlier
+  version let a witness's triage decide, and a 10 % observation error turned a P1 detected by a cardiac
+  sensor into a P3 that was never dispatched (§4.1).
+- **One exception.** A witness's triage may lower its own report, but never another source's.
+
+## References
+
+- Jøsang, A., & Ismail, R. (2002). The Beta Reputation System. *15th Bled Electronic Commerce Conference*.
+- Larsen, M. P., Eisenberg, M. S., Cummins, R. O., & Hallstrom, A. P. (1993). Predicting survival from
+  out-of-hospital cardiac arrest: a graphic model. *Annals of Emergency Medicine*, 22(11), 1652–1658.
+- Russell, S., & Norvig, P. (2022). *Artificial Intelligence: A Modern Approach* (4th ed.). Pearson.
+- Shoham, Y., & Leyton-Brown, K. (2008). *Multiagent Systems: Algorithmic, Game-Theoretic, and Logical
+  Foundations*. Cambridge University Press.
+- Smith, R. G. (1980). The Contract Net Protocol. *IEEE Transactions on Computers*, C-29(12), 1104–1113.
+- Wooldridge, M. (2009). *An Introduction to MultiAgent Systems* (2nd ed.). Wiley.
+- FIPA (2002). *FIPA Contract Net Interaction Protocol Specification* (SC00029H).

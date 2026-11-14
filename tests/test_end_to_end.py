@@ -34,7 +34,8 @@ def test_scripted_p1_case_completes_the_ol1_sequence(tmp_path):
     assert not [e for e in events if e["kind"] == "error"]
 
     s1 = next(e for e in events if e["kind"] == "gt_collapse" and e["incident"] == "S1")
-    case = next(e["case"] for e in events if e["kind"] == "case_located" and pos_key(e["location"]) == pos_key(s1["pos"]))
+    located = [e for e in events if e["kind"] == "case_located"]
+    case = next(e["case"] for e in located if pos_key(e["location"]) == pos_key(s1["pos"]))
     first = {}
     for e in events:
         if e.get("case") == case or (e.get("incident") == "S1" and e["kind"] != "gt_collapse"):

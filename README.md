@@ -12,10 +12,14 @@ This is a SPADE multi-agent system that does three things without a central disp
 The city is split into cells, each served by the hub on its AED cabinet. Hubs verify alerts, coordinate
 cases with a Contract Net, keep reputation, and take over each other's cases when one fails.
 
-> **Status:** sprint 3.
-> - All 28 protocols, scenarios C1–C4, baselines B0/B1, the rule checker, the experiment pipeline and
->   the dashboard work. The experiment matrix runs on macOS and Windows.
-> - Next: the final experiment matrix, the performance report and the slides; see [PLAN.md](PLAN.md).
+> **Status:** final week.
+> - All 28 protocols (P22 is a read inside the hub), scenarios C1–C5, baselines B0/B1, the rule checker,
+>   the experiment pipeline and the dashboard work.
+> - Since the first experiment matrix: alerts merge by a 100 m area instead of by cell, duplicate cases
+>   across cell borders are resolved by both hubs, scenario C5 (adversarial sources) and a variant
+>   without bystander guidance were added, and the code was simplified and documented in Portuguese.
+> - Next: the final experiment matrix (commit tagged `matrix-final`), the performance report and the
+>   slides.
 
 ## Setup
 
@@ -26,8 +30,8 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e ".[dev]"
-pytest -m "not slow"   # unit tests (< 1 s)
-pytest                 # plus two end-to-end SPADE runs (~1.5 min)
+pytest -m "not slow"   # unit tests (~2 s)
+pytest                 # plus two end-to-end SPADE runs (~2 min)
 ruff check src experiments tests   # PEP 8 and unused imports (settings in pyproject.toml)
 ```
 
@@ -43,24 +47,25 @@ python -m cemr.run --scenario c1 --seed 1                                  # 60 
 python -m cemr.run --scenario c4 --seed 1 --duration 1500 --factor 30      # quick: hub crash + takeover
 python -m cemr.run --scenario c2 --set sensors.policy=alert_first          # a variant
 python -m cemr.run --scenario c1 --set policy.allocation=naive             # baseline B1
+python -m cemr.run --scenario c5 --set policy.reputation=false             # C5 without reputation
 ```
 
 | Option | Meaning |
 |---|---|
-| `--scenario` | `c1`–`c4` or a file in `scenarios/`; overrides `scenarios/defaults.toml` |
+| `--scenario` | `c1`–`c5` or a file in `scenarios/`; overrides `scenarios/defaults.toml` |
 | `--seed` | Seed of the layout and incident trace |
 | `--duration`, `--factor` | Simulated seconds; clock acceleration (default 10×) |
 | `--set key=value` | Override any parameter, e.g. `--set dispatch.redundancy.P1.GO_TO_PATIENT=3` |
 | `--viz PORT` | Serve the live dashboard (use a slow clock, e.g. `--factor 5`) |
 | `--xmpp-port PORT` | Start a private in-process XMPP server on `PORT` (and `PORT+1`); used for parallel runs |
-| `--external` | Use a running `spade run --host localhost --memory` instead of the embedded server (macOS/Linux) |
 
 | Scenario | What changes | Question |
 |---|---|---|
 | C1 base urban | Average density, reliable sensors, good network | Does the flow work? How often is a volunteer there before EMS? |
 | C2 noise | Sensor false positives ×5, drifting sensors, misread scenes | Do corroboration and reputation keep precision? AlertFirst or ConfirmFirst? |
-| C3 surge | 8 incidents in 10 min within 400 m | Do exclusivity and priority avoid conflicts? How much redundancy pays off? |
+| C3 surge | 8 incidents in 10 min within 400 m | Are different patients kept apart? Do exclusivity and priority avoid conflicts? How much redundancy pays off? |
 | C4 periphery | Half the volunteers, locked AEDs, distant ambulances, coverage gaps, a hub crash | Do guidance and re-allocation hold? What does recovering a coordinator cost? |
+| C5 adversarial | The C1 city with two citizens who keep reporting collapses that did not happen | Does reputation stop repeated false reports, and at what cost? |
 
 Each run writes `runs/<scenario>-s<seed>-<time>/`:
 
@@ -68,8 +73,8 @@ Each run writes `runs/<scenario>-s<seed>-<time>/`:
 |---|---|
 | `events.jsonl` | Every message, decision and ground-truth event; the audit log |
 | `trace.json` | Layout and pre-generated incidents |
-| `config.json` | Merged parameters |
-| `summary.json` | Metrics M1–M13, the oracle B0, rule violations and a **validity** verdict |
+| `config.json` | Merged parameters and the git commit of the code |
+| `summary.json` | Metrics M1–M13, the oracle B0, rule violations, the code commit and a **validity** verdict |
 
 **Validity.** A run is invalid (exit code 3) if the simulated clock did not advance as intended, e.g.
 because the laptop slept: closing the lid suspends the process. For long runs, plug in the charger and
@@ -92,33 +97,43 @@ This re-derives the rules of the Gaia analysis from the audit log:
 - alert fatigue;
 - data retention;
 - guidance from the protocol only;
-- the life-cycle rules OL1–OL9.
+- the life-cycle rules OL1–OL9;
+- DUP, added in the design: no incident handled by two declared cases.
 
 ## Experiments
 
 ```bash
-python experiments/run_matrix.py --matrix main --seeds 1-5 --workers 4    # ~1h45 (macOS: prefix caffeinate -i)
+python experiments/run_matrix.py --matrix smoke --seeds 1-2 --duration 1200   # ~15 min: 7 configurations
+python experiments/run_matrix.py --matrix main --seeds 1-10 --workers 4       # ~5–6 h (macOS: prefix caffeinate -i)
+powershell -ExecutionPolicy Bypass -File experiments\run_overnight.ps1        # Windows: main matrix, retries, analysis
 python experiments/analyse.py
 ```
 
-`run_matrix.py` runs 13 configurations × seeds in parallel, each run with its own XMPP server, skipping
-runs that are already valid. The configurations are:
+`run_matrix.py` runs configurations × seeds in parallel, each run with its own XMPP server. It skips
+runs that are already valid **for the current commit** and refuses to start with uncommitted changes in
+`src/`, `scenarios/` or `experiments/`, so the final results come from one version of the code. Each
+matrix has its own folder, `runs/<matrix>/<scenario>-<variant>-s<seed>/`. The main matrix has 19
+configurations:
 
-- C1–C4, each with the system as designed and with baseline B1;
-- C2 with AlertFirst, ConfirmFirst and without reputation;
-- C3 with redundancy k = 1 and k = 3.
+- C1: the system as designed, baseline B1 and without bystander guidance;
+- C2: as designed, B1, AlertFirst, ConfirmFirst and without reputation;
+- C3: as designed, B1, without guidance, and redundancy k = 1 and k = 3;
+- C4: as designed, B1 and without guidance;
+- C5: as designed, B1 and without reputation.
 
-`analyse.py` writes these files to `results/`:
+`analyse.py` reads `results/runs.csv` (one row per job of the main matrix) and writes to `results/`:
 
 | File | Contents |
 |---|---|
-| `summary.csv`, `summary.md` | Means with 95 % CI per configuration and metric |
-| `fig_c1.png` … `fig_c4.png` | One figure per scenario |
+| `summary.csv`, `summary.md` | Means with 95 % CI per configuration and metric, with the code commit |
+| `paired.csv`, `paired.md` | Each variant minus "ours", paired by seed: mean, 95 % CI and in how many seeds ours was better |
+| `fig_c1.png` … `fig_c5.png` | Means per scenario |
+| `fig_c1_paired.png` … | Paired differences per scenario |
 
 ## Dashboard
 
 ```bash
-python -m cemr.viz.server runs/<run>          # replay a finished run at http://127.0.0.1:8080/
+python -m cemr.viz.server runs/main/<run>     # replay a finished run at http://127.0.0.1:8080/
 python -m cemr.run --scenario c1 --factor 5 --viz 8080                     # watch a run live
 ```
 
@@ -137,11 +152,9 @@ Open `?t=1200&speed=60` to start a replay at a given time.
 - **Single run:** the embedded server (`spade.run(..., embedded_xmpp_server=True)`) is used. Nothing
   else is needed.
 - **Parallel runs:** each run starts a private in-process server on its own port (`--xmpp-port`), so
-  runs share nothing. A shared `spade run` server is not used any more: on Windows it never completes a
+  runs share nothing. A shared `spade run` server is not used: on Windows it never completes a
   registration (pyjabber hashes passwords in a process pool whose *spawned* workers re-run `spade run`'s
   entry point and crash), and even a fixed shared server logs 4 × 100 agents in very slowly.
-- **`--external`** still works with `spade run --host localhost --memory` on macOS/Linux. `--host localhost`
-  is required: with the default domain, messages to `agent@localhost` are silently dropped.
 - **Security:** the server also listens on the LAN address and agents auto-register with trivial
   passwords, so use it only on trusted networks. The dashboard listens on 127.0.0.1 only.
 
@@ -152,16 +165,16 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
 | Path | Contents |
 |---|---|
 | `docs/` | Assignment brief, Gaia analysis, architectural design, detailed design, protocols and message schemas |
-| `src/cemr/sim/` | Environment: clock, city grid, world, patients, incident trace, network model |
-| `src/cemr/protocol/` | Ontology, payloads of P01–P28, schema-doc generator |
-| `src/cemr/agents/` | Hub (with the case FSM), volunteer, EMS, citizen device, bystander |
-| `src/cemr/behaviours/` | Pure decision logic: fusion, Contract Net, privacy, reputation, AED custody, guidance |
+| `src/cemr/sim/` | Environment: clock, city grid, layout, world, patients, incident trace, network model |
+| `src/cemr/protocol/` | Ontology, messages of P01–P28 (one module per sub-organisation) and their JSON encoding |
+| `src/cemr/agents/` | Base agent and conversations; hub (with the case FSM in `case_*.py` and failover); volunteer; EMS; citizen device; bystander |
+| `src/cemr/behaviours/` | Pure decision logic: fusion and merging, Contract Net, privacy, reputation, AED custody, guidance |
 | `src/cemr/baselines/` | Oracle B0 (B1 is a policy of the hubs) |
-| `src/cemr/metrics/` | Event log, metrics M1–M13, rule checker |
+| `src/cemr/metrics/` | Event log, metrics M1–M13, rule checker (safety and liveness rules) |
 | `src/cemr/viz/` | Dashboard server and page |
-| `scenarios/` | `defaults.toml` (every parameter, documented) and C1–C4 |
-| `experiments/` | Matrix runner and analysis |
-| `tests/` | Unit and end-to-end tests |
+| `scenarios/` | `defaults.toml` (every parameter, documented) and C1–C5 |
+| `experiments/` | Matrix runner, overnight script and analysis |
+| `tests/` | Unit tests by topic and end-to-end tests |
 | `spikes/` | Sprint 0 scale spike |
 
 ## Documentation
@@ -171,6 +184,9 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
 2. [Architectural design](docs/02-architectural-design.md): organisational structure (cell hubs),
    decisions D1–D8, completed role and interaction models, rule enforcement.
 3. [Detailed design](docs/03-detailed-design.md): agent and services models, SPADE mapping, decision
-   logic, behaviour models, failure handling, verification.
+   logic, behaviour models, failure handling, verification, and how the design relates to the course
+   concepts (agent architectures, auctions, social choice).
 4. [Protocols and message schemas](docs/04-protocols-and-messages.md): envelope, threads, sequence
-   diagrams, and schema tables generated from `src/cemr/protocol/messages.py`.
+   diagrams, and the schema of every message in `src/cemr/protocol/messages_*.py`.
+5. API documentation from the docstrings (in Portuguese): `pdoc src/cemr -o docs/api`, then open
+   `docs/api/index.html`.
