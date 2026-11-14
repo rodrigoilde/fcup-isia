@@ -17,10 +17,9 @@ import itertools
 
 from ..behaviours.aed_custody import AEDCustody
 from ..behaviours.reputation import TrustTable
-from ..protocol.messages import (AEDRelease, AEDReservation, AEDReservationCancel, AEDReservationRefusal,
-                                 AEDReservationRequest, AEDRetrieval, AEDRetrievalFailure, AEDUnlock, AlertCancel,
-                                 AlertReport, CandidateMerge, CandidateNotice, CaseSnapshot, Deregistration,
-                                 Heartbeat, HeartbeatAck, Registration, RegistrationAck, ReputationSummary)
+from ..protocol.messages_detection import AlertCancel, AlertReport
+from ..protocol.messages_hubs import CandidateMerge, CandidateNotice, CaseSnapshot, Deregistration, Heartbeat, HeartbeatAck, Registration, RegistrationAck, ReputationSummary
+from ..protocol.messages_response import AEDRelease, AEDReservation, AEDReservationCancel, AEDReservationRefusal, AEDReservationRequest, AEDRetrieval, AEDRetrievalFailure, AEDUnlock
 from ..protocol.ontology import AEDState, CaseState
 from ..sim.directory import Directory
 from .base import CEMRAgent, Incoming

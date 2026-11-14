@@ -2,6 +2,7 @@
 reputation, survival proxy, geometry, network FIFO and trace reproducibility (RNF9)."""
 
 import random
+from dataclasses import MISSING, fields
 
 import pytest
 
@@ -221,19 +222,14 @@ def test_network_keeps_fifo_per_link():
 
 # --- message schemas -----------------------------------------------------------------------------
 def test_every_protocol_has_payloads_and_they_roundtrip():
-    payloads = messages.all_payloads()
-    assert {p.PROTOCOL for p in payloads} == set(Protocol)
-    for cls in payloads:
+    classes = messages.payload_classes()
+    assert {cls.PROTOCOL for cls in classes} == set(Protocol)
+    samples = {int: 1, float: 1.5, str: "x", bool: True, list: [1, 2], dict: {"a": 1}}
+    for cls in classes:
         kwargs = {}
-        for name, typ, _ in messages.field_docs(cls):
-            default = cls.__dataclass_fields__[name].default
-            if default is not messages.MISSING:
-                continue
-            factory = cls.__dataclass_fields__[name].default_factory
-            if factory is not messages.MISSING:
-                continue
-            kwargs[name] = {"int": 1, "float": 1.5, "str": "x", "bool": True, "list": [1, 2], "dict": {"a": 1}}.get(
-                typ, "x")
+        for f in fields(cls):
+            if f.default is MISSING and f.default_factory is MISSING:
+                kwargs[f.name] = samples.get(f.type, "x")
         obj = cls(**kwargs)
         assert messages.decode(messages.encode(obj)) == obj
         assert cls.PERFORMATIVES, cls.__name__

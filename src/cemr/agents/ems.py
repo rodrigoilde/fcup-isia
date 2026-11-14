@@ -7,10 +7,10 @@ reference label for reputation (P13 CLINICAL_CONFIRMATION).
     EMSMission: TRAVEL -> ON_SCENE -> RETURN
 """
 
-from ..protocol.messages import (AmbulanceAward, AmbulanceCall, AmbulanceConfirmation, AmbulanceFailure,
-                                 AmbulanceProposal, AmbulanceRefusal, AmbulanceRejection, CaseClosure,
-                                 HandoverRequest, HandoverSummary, OnSceneRoster, Release, ReleaseAck, StatusReport,
-                                 Takeover)
+from ..protocol.messages_assistance import HandoverRequest, HandoverSummary
+from ..protocol.messages_dispatch import AmbulanceAward, AmbulanceCall, AmbulanceConfirmation, AmbulanceFailure, AmbulanceProposal, AmbulanceRefusal, AmbulanceRejection
+from ..protocol.messages_hubs import Takeover
+from ..protocol.messages_response import CaseClosure, OnSceneRoster, Release, ReleaseAck, StatusReport
 from ..protocol.ontology import EMSState, ResponderStatus
 from ..sim.directory import Directory
 from .base import CEMRAgent, Conversation, Incoming, Step

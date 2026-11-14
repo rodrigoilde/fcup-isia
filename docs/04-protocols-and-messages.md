@@ -13,12 +13,9 @@ The sequence diagrams follow what the implementation does; they were checked aga
 of a C1 run. Inputs/outputs per protocol come from the analysis (§6); partners and FIPA patterns from
 [02-architectural-design.md](02-architectural-design.md) §4.
 
-The schema tables (§5) are **generated from the code** (`src/cemr/protocol/messages.py`), so they always
-match what agents send:
-
-```bash
-python -m cemr.protocol.schema_doc --write docs/04-protocols-and-messages.md
-```
+The schema tables (§5) follow the message dataclasses in `src/cemr/protocol/messages_*.py`, one module
+per sub-organisation. The docstring of each class describes its fields; `pdoc src/cemr -o docs/api`
+renders them as HTML.
 
 ## 1. Envelope
 
@@ -146,8 +143,9 @@ sequenceDiagram
 
 ## 4. Implementation status
 
-All 28 protocols are implemented. Guidance (P05, P15–P18) and failover (P26–P28) are shown as sequence
-diagrams in [03-detailed-design.md](03-detailed-design.md) §2.6–2.7.
+All 28 protocols are implemented; P22 is a read inside the hub and has no messages. Guidance (P05,
+P15–P18) and failover (P26–P28) are shown as sequence diagrams in
+[03-detailed-design.md](03-detailed-design.md) §2.6–2.7.
 
 | Protocol | Notes |
 |---|---|
@@ -161,7 +159,8 @@ diagrams in [03-detailed-design.md](03-detailed-design.md) §2.6–2.7.
 | P13 StatusUpdate, P14 ReleaseResponder | EN_ROUTE refreshes the award deadline; P14 acknowledged and resent (F5); surplus released (OL8) |
 | P15 HelpEnRouteNotice, P16 GiveInstruction, P17 ReportFeedback, P18 TakeoverFromBystander | P16/P17 are local to the witness's phone |
 | P19 HandoverToEMS, P20 CloseCase | Handover from a volunteer, or from the guide if no volunteer is on scene; closure sent twice to the data guardian |
-| P21 OutcomeFeedback, P22 QueryTrust, P23 ShareReputation | Labels at closure; gossip every 10 min with discount; decay |
+| P21 OutcomeFeedback, P23 ShareReputation | Labels at closure; gossip every 10 min with discount; decay |
+| P22 QueryTrust | No messages: the coordinator reads the trust table of its own hub (D2) |
 | P24 RequestDisclosure | Location for P1/P2; repeated once; requested again by a successor after a takeover |
 | P25 RegisterInCell | Volunteers up to ring 2, witnesses and devices up to ring 1 |
 | P26 CandidateOpen | First opened keeps; the other hub relays later alerts with their origin |
@@ -171,8 +170,6 @@ diagrams in [03-detailed-design.md](03-detailed-design.md) §2.6–2.7.
 
 Types are those of the JSON body. `list` positions are `[x, y]` in metres; times are simulated seconds
 since the start of the run.
-
-<!-- BEGIN GENERATED: message schemas -->
 
 ### P01 · RaiseCandidateAlert
 
@@ -190,7 +187,6 @@ A suspected collapse, from a device (SensorMonitor) or a citizen (WitnessReporte
 | `t_event` | `float` | When the event was detected or seen |
 | `policy` | `str` | alert_first \| confirm_first \| human |
 | `prompt_status` | `str` | Wearer prompt: pending \| no_response \| not_applicable |
-| `signal_quality` | `float` | Sensor signal quality in [0, 1] (1 for humans) |
 | `origin` | `str \| None` | Original source when a hub relays the alert after a merge (P26) |
 
 **`AlertAck`** · `inform`
@@ -243,7 +239,6 @@ Ask nearby sources for independent evidence. Never includes the precise location
 | `candidate_id` | `str` | Candidate being corroborated |
 | `verdict` | `str` | confirm \| deny \| no_data |
 | `confidence` | `float` | Confidence of the summarised evidence in [0, 1] |
-| `quality` | `float` | Signal or observation quality in [0, 1] |
 
 **`CorroborationRefusal`** · `refuse`
 
@@ -342,7 +337,6 @@ A volunteer's bid. ETAs are computed on the volunteer's phone; its position neve
 | `case_id` | `str` | Case being bid for |
 | `offers` | `list` | [{task, eta_s, aed_id?}]: one entry per task the volunteer can do |
 | `qualification` | `str` | NONE \| BLS \| BLS_AED \| HEALTH_PRO |
-| `eta_confidence` | `float` | Volunteer's confidence in its ETA |
 
 **`ProposalRefusal`** · `refuse`
 
@@ -366,7 +360,6 @@ The only message that gives a volunteer the patient's precise location (OS5).
 | `aed_id` | `int \| None` | AED to fetch (FETCH_AED) |
 | `reservation_ref` | `str \| None` | Reservation to present at the cabinet (FETCH_AED) |
 | `award_token` | `str \| None` | Proof of award checked by the AED custodian (FETCH_AED) |
-| `access_notes` | `str` | Building access notes, if disclosed |
 | `guide` | `str \| None` | Witness device running guidance on scene, for the takeover (P18) |
 
 **`AwardRejection`** · `reject-proposal`
@@ -406,7 +399,6 @@ The only message that gives a volunteer the patient's precise location (OS5).
 |---|---|---|
 | `case_id` | `str` | Case |
 | `eta_s` | `float` | Estimated time to the cell centre, including dispatch delay |
-| `preempts` | `str \| None` | P3 case the unit would leave (OS9) |
 
 **`AmbulanceRefusal`** · `refuse`
 
@@ -590,9 +582,6 @@ Coordinator's answer to an EMS ON_SCENE status: who is there to hand over (P19).
 |---|---|---|
 | `case_id` | `str` | Case |
 | `cpr_started_at` | `float \| None` | When compressions started |
-| `interruptions` | `int` | Number of pauses |
-| `aed_attached_at` | `float \| None` | When the AED was attached |
-| `shocks` | `int` | Shocks delivered |
 
 ### P19 · HandoverToEMS
 
@@ -644,17 +633,8 @@ Closure notice to the custodian of an AED reserved for the case.
 
 ### P22 · QueryTrust
 
-**`TrustQuery`** · `query-ref`
-
-| Field | Type | Description |
-|---|---|---|
-| `pseudonyms` | `list` | Pseudonyms to rate |
-
-**`TrustReply`** · `inform`
-
-| Field | Type | Description |
-|---|---|---|
-| `trust` | `dict` | pseudonym -> {trust in [0, 1], n observations} |
+No messages. The coordinator and the reputation manager are the same agent (the hub, D2), so
+querying trust is a read of the hub's own trust table.
 
 ### P23 · ShareReputation
 
@@ -662,7 +642,7 @@ Closure notice to the custodian of an AED reserved for the case.
 
 | Field | Type | Description |
 |---|---|---|
-| `entries` | `list` | [{pseudonym, alpha, beta, age_s}] |
+| `entries` | `list` | [{pseudonym, alpha, beta}] |
 
 ### P24 · RequestDisclosure
 
@@ -808,4 +788,3 @@ Compact case state for the successor hub; excludes location and clinical data (D
 | `RESOLVIDO_NO_LOCAL` | `RESOLVED_ON_SCENE` |
 | `TRANSPORTADO` | `TRANSPORTED` |
 
-<!-- END GENERATED: message schemas -->

@@ -28,7 +28,9 @@ from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour, FSMBehaviour, OneShotBehaviour, PeriodicBehaviour, State
 from spade.message import Message
 
-from ..protocol.messages import AlertAck, Deregistration, Registration, decode, encode
+from ..protocol.messages import decode, encode
+from ..protocol.messages_detection import AlertAck
+from ..protocol.messages_hubs import Deregistration, Registration
 from ..protocol.ontology import LANGUAGE, ONTOLOGY
 from ..protocol.templates import NEVER
 from ..sim.context import SimContext

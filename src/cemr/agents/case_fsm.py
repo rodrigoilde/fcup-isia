@@ -26,16 +26,11 @@ from dataclasses import asdict, dataclass, field
 from ..behaviours.contract_net import Offer, assign, best_ambulance, offer_score
 from ..behaviours.verification import (Belief, SourceView, case_priority, evidence_weight, os4_branch,
                                        should_declare, triage_incoherent)
-from ..protocol.messages import (AEDRelease, AEDReservation, AEDReservationCancel, AEDReservationRefusal,
-                                 AEDReservationRequest, AlertAck, AlertCancel, AlertReport, AmbulanceAward,
-                                 AmbulanceCall, AmbulanceConfirmation, AmbulanceFailure, AmbulanceProposal,
-                                 AmbulanceRefusal, AmbulanceRejection, Award, AwardConfirmation, AwardFailure,
-                                 AwardRejection, CallForProposals, CancelAck, CandidateMerge, CandidateNotice,
-                                 CaseClosure, CaseSnapshot, CorroborationQuery, CorroborationRefusal,
-                                 CorroborationReply, Declaration, Disclosure, DisclosureRefusal, DisclosureRequest,
-                                 GuidanceAck, GuidanceActivation, HelpEnRoute, OnSceneRoster, OutcomeLabels,
-                                 Proposal, ProposalRefusal, Release, ReleaseAck, Retraction, StatusReport, Takeover,
-                                 TriageAnswer, TriageQuestion)
+from ..protocol.messages_assistance import HelpEnRoute
+from ..protocol.messages_detection import AlertAck, AlertCancel, AlertReport, CancelAck, CorroborationQuery, CorroborationRefusal, CorroborationReply, Declaration, GuidanceAck, GuidanceActivation, Retraction, TriageAnswer, TriageQuestion
+from ..protocol.messages_dispatch import AmbulanceAward, AmbulanceCall, AmbulanceConfirmation, AmbulanceFailure, AmbulanceProposal, AmbulanceRefusal, AmbulanceRejection, Award, AwardConfirmation, AwardFailure, AwardRejection, CallForProposals, Proposal, ProposalRefusal
+from ..protocol.messages_hubs import CandidateMerge, CandidateNotice, CaseSnapshot, Disclosure, DisclosureRefusal, DisclosureRequest, OutcomeLabels, Takeover
+from ..protocol.messages_response import AEDRelease, AEDReservation, AEDReservationCancel, AEDReservationRefusal, AEDReservationRequest, CaseClosure, OnSceneRoster, Release, ReleaseAck, StatusReport
 from ..protocol.ontology import (ON_SCENE_STATUSES, Answer, CancelReason, CaseState, DisclosureField, EventType,
                                  Outcome, Priority, PromptStatus, Qualification, ResponderStatus, SourceKind,
                                  TaskType, TriageQuestionId, Verdict)

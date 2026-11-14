@@ -22,11 +22,11 @@ from spade.message import Message
 
 from ..behaviours import guidance as gp
 from ..behaviours.privacy import decide_disclosure
-from ..protocol.messages import (ActionSummary, AlertAck, AlertReport, CaseClosure, CorroborationQuery,
-                                 CorroborationReply, Disclosure, DisclosureRefusal, DisclosureRequest, Feedback,
-                                 GuidanceAck, GuidanceActivation, HandoverRequest, HandoverSummary, HelpEnRoute,
-                                 Instruction, RegistrationAck, StatusReport, Takeover, TakeoverRequest, TriageAnswer,
-                                 TriageQuestion, encode)
+from ..protocol.messages import encode
+from ..protocol.messages_assistance import ActionSummary, Feedback, HandoverRequest, HandoverSummary, HelpEnRoute, Instruction, TakeoverRequest
+from ..protocol.messages_detection import AlertAck, AlertReport, CorroborationQuery, CorroborationReply, GuidanceAck, GuidanceActivation, TriageAnswer, TriageQuestion
+from ..protocol.messages_hubs import Disclosure, DisclosureRefusal, DisclosureRequest, RegistrationAck, Takeover
+from ..protocol.messages_response import CaseClosure, StatusReport
 from ..protocol.ontology import (Answer, EventType, PromptStatus, RegistrationRole, ResponderStatus, SensorPolicy,
                                  SourceKind, TriageQuestionId, Verdict)
 from ..sim.directory import Directory
@@ -278,4 +278,4 @@ class Guide(Step):
 
     def summary(self) -> ActionSummary:
         g = self.fsm
-        return ActionSummary(g.case_id, g.helper.cpr_started_at, 0, None, 0)
+        return ActionSummary(g.case_id, g.helper.cpr_started_at)

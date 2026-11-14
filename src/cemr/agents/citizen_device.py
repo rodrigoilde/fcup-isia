@@ -13,9 +13,9 @@ import itertools
 from spade.behaviour import CyclicBehaviour
 
 from ..behaviours.privacy import decide_disclosure
-from ..protocol.messages import (AlertAck, AlertCancel, AlertReport, CancelAck, CaseClosure, CorroborationQuery,
-                                 CorroborationReply, Disclosure, DisclosureRefusal, DisclosureRequest,
-                                 RegistrationAck)
+from ..protocol.messages_detection import AlertAck, AlertCancel, AlertReport, CancelAck, CorroborationQuery, CorroborationReply
+from ..protocol.messages_hubs import Disclosure, DisclosureRefusal, DisclosureRequest, RegistrationAck
+from ..protocol.messages_response import CaseClosure
 from ..protocol.ontology import (CancelReason, EventType, PromptStatus, RegistrationRole, SensorPolicy,
                                  SourceKind, Verdict)
 from ..sim.directory import Directory
@@ -82,7 +82,7 @@ class CitizenDeviceAgent(CEMRAgent):
 
         def report(prompt):
             return AlertReport(alert_id, SourceKind.SENSOR, str(etype), confidence, cell, event["t"], str(policy),
-                               str(prompt), event["features"]["quality"])
+                               str(prompt))
 
         if policy == SensorPolicy.ALERT_FIRST:
             prompt_end = self.now() + (response if answered else countdown)

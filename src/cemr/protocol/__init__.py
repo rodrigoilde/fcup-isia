@@ -1,1 +1,1 @@
-"""Message envelope, per-protocol payloads (P01-P24) and SPADE templates."""
+"""Ontologia, mensagens dos protocolos P01-P28 e a sua codificação em JSON."""

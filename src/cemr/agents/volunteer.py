@@ -16,10 +16,10 @@ OL6 (re-recruitment) and OL8 (release of surplus) matter.
 
 from collections import deque
 
-from ..protocol.messages import (ActionSummary, AEDRetrieval, AEDRetrievalFailure, AEDUnlock, Award,
-                                 AwardConfirmation, AwardFailure, AwardRejection, CallForProposals, CaseClosure,
-                                 HandoverRequest, HandoverSummary, Proposal, ProposalRefusal, RegistrationAck, Release,
-                                 ReleaseAck, StatusReport, Takeover, TakeoverRequest)
+from ..protocol.messages_assistance import ActionSummary, HandoverRequest, HandoverSummary, TakeoverRequest
+from ..protocol.messages_dispatch import Award, AwardConfirmation, AwardFailure, AwardRejection, CallForProposals, Proposal, ProposalRefusal
+from ..protocol.messages_hubs import RegistrationAck, Takeover
+from ..protocol.messages_response import AEDRetrieval, AEDRetrievalFailure, AEDUnlock, CaseClosure, Release, ReleaseAck, StatusReport
 from ..protocol.ontology import Qualification, RegistrationRole, ResponderStatus, TaskType
 from ..sim.directory import Directory
 from ..sim.incidents import VolunteerProfile
