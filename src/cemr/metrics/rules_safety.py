@@ -1,7 +1,8 @@
-"""Regras de safety da análise Gaia (OS1-OS13), verificadas no registo de eventos de um run.
+"""Regras de safety da análise Gaia (OS1-OS13), mais a regra DUP, verificadas no registo de eventos.
 
 Uma regra de safety diz o que nunca pode acontecer; cada função devolve a descrição de cada vez
-que aconteceu. Desenho em docs/02-architectural-design.md §6.
+que aconteceu. A DUP não vem da análise: foi acrescentada para tornar visíveis os casos duplicados
+do mesmo doente. Desenho em docs/02-architectural-design.md §6.
 """
 
 import json
@@ -9,6 +10,7 @@ from collections import defaultdict
 
 from ..behaviours.guidance import STEPS
 from ..protocol.ontology import Qualification
+from .compute import nearest_incident
 from .eventlog import AuditLog
 
 # Eventos que só o dono de um caso pode registar (OS1)
@@ -170,3 +172,22 @@ def check_os13(log: AuditLog, cfg: dict) -> list[str]:
                 Qualification(qualification).rank < Qualification.BLS.rank:
             found.append(f"{e['responder']} ({qualification}) sent to the patient in {e['case']}")
     return found
+
+
+def check_dup(log: AuditLog, cfg: dict) -> list[str]:
+    """DUP: nenhum incidente é tratado por dois casos declarados (deduplicação P26 e fusão de alertas).
+
+    Um caso duplicado não conta como falso despacho nas métricas, por isso precisa desta regra para
+    ficar visível. Cada caso é associado ao doente mais próximo da localização divulgada (P24).
+    """
+    incidents = {e["incident"]: {"pos": e["pos"]} for e in log.of("gt_collapse")}
+    declared = {e["case"] for e in log.of("case_declared")}
+    cases_of = defaultdict(set)
+    for e in log.of("case_located"):
+        if e["case"] not in declared:
+            continue
+        incident = nearest_incident(incidents, e["location"], cfg["metrics"]["match_radius_m"])
+        if incident is not None:
+            cases_of[incident].add(e["case"])
+    return [f"{incident} handled by {len(cases)} declared cases ({', '.join(sorted(cases))})"
+            for incident, cases in sorted(cases_of.items()) if len(cases) > 1]

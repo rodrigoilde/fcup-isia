@@ -15,7 +15,7 @@ import itertools
 
 from spade.behaviour import CyclicBehaviour
 
-from ..behaviours.privacy import decide_disclosure
+from ..behaviours.privacy import coarse_area, decide_disclosure
 from ..protocol.messages_detection import (AlertAck, AlertCancel, AlertReport, CancelAck, CorroborationQuery,
                                            CorroborationReply)
 from ..protocol.messages_hubs import Disclosure, DisclosureRefusal, DisclosureRequest, RegistrationAck
@@ -67,7 +67,7 @@ class CitizenDeviceAgent(CEMRAgent):
     com regras fixas de deteção e de política de alerta.
 
     Attributes:
-        recent_alerts (list[tuple]): (alerta, célula, instante, confiança) dos alertas enviados.
+        recent_alerts (list[tuple]): (alerta, célula, instante, confiança, área) dos alertas enviados.
     """
 
     KIND = "device"
@@ -77,7 +77,7 @@ class CitizenDeviceAgent(CEMRAgent):
 
     async def on_setup(self) -> None:
         self.alert_ids = itertools.count(1)
-        self.recent_alerts: list[tuple[str, int, float, float]] = []
+        self.recent_alerts: list[tuple] = []
         self.service_handlers = {DisclosureRequest: self.on_disclosure_request}
         self.add_behaviour(Sensing(), NEVER)
         await self.register_with_hubs(RegistrationRole.SENSOR)
@@ -97,16 +97,17 @@ class CitizenDeviceAgent(CEMRAgent):
         policy = self.policy_for(etype)
         alert_id = f"{self.label}-a{next(self.alert_ids)}"
         cell = self.cell()
+        area = coarse_area(self.pos(), self.cfg["city"]["grid_spacing_m"])
         countdown = self.cfg["wearer"]["prompt_countdown_s"]
         response = self.world.wearer_response(self.label)            # wearerResponse[d]
         answered = response is not None and response <= countdown
         prompt_s = response if answered else countdown
-        self.recent_alerts.append((alert_id, cell, self.now(), confidence))
+        self.recent_alerts.append((alert_id, cell, self.now(), confidence, area))
         self.log("sensor_event", alert=alert_id, event_type=str(etype), confidence=confidence, policy=str(policy))
 
         def report(prompt: str) -> AlertReport:
-            return AlertReport(alert_id, SourceKind.SENSOR, str(etype), confidence, cell, event["t"], str(policy),
-                               str(prompt))
+            return AlertReport(alert_id, SourceKind.SENSOR, str(etype), confidence, cell, area, event["t"],
+                               str(policy), str(prompt))
 
         if policy == SensorPolicy.ALERT_FIRST:
             await self.alert_first(alert_id, cell, report, prompt_s, answered)
@@ -140,11 +141,12 @@ class CitizenDeviceAgent(CEMRAgent):
             await super().on_message(inc)
 
     async def corroborate(self, inc: Incoming, query: CorroborationQuery) -> None:
-        """_SummariseEvidence (P03): só sai do dispositivo um veredicto e uma confiança."""
+        """_SummariseEvidence (P03): só sai do dispositivo um veredicto, uma confiança e a área do alerta."""
         matches = [a for a in self.recent_alerts
                    if a[1] == query.cell and query.window_from <= a[2] <= query.window_to]
         if matches:
-            await self.reply(inc, CorroborationReply(query.candidate_id, Verdict.CONFIRM, matches[-1][3]))
+            last = matches[-1]
+            await self.reply(inc, CorroborationReply(query.candidate_id, Verdict.CONFIRM, last[3], last[4]))
         else:
             await self.reply(inc, CorroborationReply(query.candidate_id, Verdict.NO_DATA, 0.0))
 

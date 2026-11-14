@@ -201,3 +201,61 @@ def os4_branch(sources: list[SourceView], human_min_trust: float) -> str | None:
 def should_declare(probability: float, priority: Priority, tau: dict, branch: str | None) -> bool:
     """Decide a declaração: a crença tem de chegar a tau(prioridade) e um ramo de OS4 tem de valer."""
     return branch is not None and probability >= tau[str(priority)]
+
+
+# --- fusão de alertas e duplicados (_MergeCandidates, P26) ---------------------------------------
+def close_areas(a: list | None, b: list | None, radius_m: float) -> bool:
+    """Se duas áreas (cruzamentos da grelha) estão a uma distância Manhattan de até `radius_m`."""
+    if a is None or b is None:
+        return False
+    return abs(a[0] - b[0]) + abs(a[1] - b[1]) <= radius_m
+
+
+def same_incident(area_a: list | None, t_a: float, area_b: list | None, t_b: float,
+                  window_s: float, radius_m: float) -> bool:
+    """Decide se dois alertas ou candidatos são o mesmo incidente: perto no tempo e no espaço.
+
+    Args:
+        area_a (list | None): Área do primeiro (ver `privacy.coarse_area`).
+        t_a (float): Instante do primeiro.
+        area_b (list | None): Área do segundo.
+        t_b (float): Instante do segundo.
+        window_s (float): Janela de fusão.
+        radius_m (float): Distância máxima entre as áreas.
+
+    Returns:
+        bool: True se estão dentro da janela e das áreas próximas.
+    """
+    return abs(t_a - t_b) <= window_s and close_areas(area_a, area_b, radius_m)
+
+
+@dataclass(frozen=True)
+class Candidate:
+    """Um candidato, como a deduplicação P26 o vê.
+
+    Attributes:
+        t_open (float): Quando foi aberto.
+        hub_id (int): Hub que o abriu.
+        area (list | None): Área do primeiro alerta.
+    """
+
+    t_open: float
+    hub_id: int
+    area: list | None
+
+
+def notice_decision(ours: Candidate, theirs: Candidate, window_s: float, radius_m: float) -> str | None:
+    """Decisão de um hub ao receber o aviso P26 de um candidato de um vizinho.
+
+    Fica o candidato aberto primeiro; em empate, o do hub de menor id. Quem tem o mais recente larga-o
+    ("drop"); quem tem o mais antigo responde com o seu aviso ("reply"), para o outro hub saber que
+    deve largar o dele. Só responde quem tem o candidato mais antigo, por isso não há ciclos.
+
+    Returns:
+        str | None: "drop", "reply", ou None se não é o mesmo incidente.
+    """
+    if not same_incident(ours.area, ours.t_open, theirs.area, theirs.t_open, window_s, radius_m):
+        return None
+    if (theirs.t_open, theirs.hub_id) < (ours.t_open, ours.hub_id):
+        return "drop"
+    return "reply"

@@ -138,6 +138,7 @@ retry_after_s = 20                # F5: resend an unacknowledged request after t
 max_retries = 2
 triage_deadline_s = 12              # witnesses answer in 3-10 s; leaves room for a retry inside W_max
 merge_window_s = 90
+merge_radius_m = 100              # alerts merge if their areas (100 m grid) are this close (Manhattan)
 trust_prior = 0.5
 human_reliable_min_trust = 0.4    # a witness at or above this trust counts as a "reliable human" (OS4)
 

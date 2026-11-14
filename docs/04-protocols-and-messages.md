@@ -163,7 +163,7 @@ P15–P18) and failover (P26–P28) are shown as sequence diagrams in
 | P22 QueryTrust | No messages: the coordinator reads the trust table of its own hub (D2) |
 | P24 RequestDisclosure | Location for P1/P2; repeated once; requested again by a successor after a takeover |
 | P25 RegisterInCell | Volunteers up to ring 2, witnesses and devices up to ring 1 |
-| P26 CandidateOpen | First opened keeps; the other hub relays later alerts with their origin |
+| P26 CandidateOpen | Same incident = within the merge window and areas at most 100 m apart. First opened keeps; a hub holding the older candidate answers with its own notice, so the other hub drops its duplicate and relays later alerts with their origin |
 | P27 ReplicateCase, P28 TakeOverCase | Heartbeats every 5 s, lease 15 s; snapshots without location or clinical data |
 
 ## 5. Message schemas
@@ -183,7 +183,8 @@ A suspected collapse, from a device (SensorMonitor) or a citizen (WitnessReporte
 | `source_kind` | `str` | sensor \| witness |
 | `event_type` | `str` | collapse_cardiac \| fall_immobile \| fall \| witness_collapse |
 | `confidence` | `float` | Local confidence in [0, 1] |
-| `cell` | `int` | Coarse location: the cell id only (D7) |
+| `cell` | `int` | Cell of the source |
+| `area` | `list` | The source's position rounded to the nearest grid crossing, [x, y] (~100 m, D7) |
 | `t_event` | `float` | When the event was detected or seen |
 | `policy` | `str` | alert_first \| confirm_first \| human |
 | `prompt_status` | `str` | Wearer prompt: pending \| no_response \| not_applicable |
@@ -239,6 +240,7 @@ Ask nearby sources for independent evidence. Never includes the precise location
 | `candidate_id` | `str` | Candidate being corroborated |
 | `verdict` | `str` | confirm \| deny \| no_data |
 | `confidence` | `float` | Confidence of the summarised evidence in [0, 1] |
+| `area` | `list \| None` | Area of the confirming observation (~100 m); the hub ignores a confirmation from another area, which is about another patient in the same cell |
 
 **`CorroborationRefusal`** · `refuse`
 
@@ -705,6 +707,7 @@ Make oneself reachable by a hub, without coordinates (D3).
 |---|---|---|
 | `candidate_id` | `str` | Candidate just opened |
 | `cell` | `int` | Its cell |
+| `area` | `list \| None` | Area of its first alert (~100 m) |
 | `t_open` | `float` | When it was opened |
 | `event_type` | `str` | Event type of the first alert |
 

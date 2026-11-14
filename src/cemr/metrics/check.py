@@ -16,8 +16,8 @@ from pathlib import Path
 from ..config import deep_merge, load_config
 from .eventlog import AuditLog, read_events
 from .rules_liveness import check_ol1, check_ol2, check_ol3, check_ol5, check_ol6, check_ol7, check_ol9
-from .rules_safety import (check_os1, check_os2, check_os3, check_os4, check_os5, check_os6, check_os8, check_os9,
-                           check_os11, check_os12, check_os13)
+from .rules_safety import (check_dup, check_os1, check_os2, check_os3, check_os4, check_os5, check_os6, check_os8,
+                           check_os9, check_os11, check_os12, check_os13)
 
 # Código da regra -> (descrição, verificação)
 RULES = {
@@ -32,6 +32,7 @@ RULES = {
     "OS11": ("personal data purged within T_ret of closure", check_os11),
     "OS12": ("guidance instructions only from guidanceProtocol", check_os12),
     "OS13": ("GO_TO_PATIENT only to qualified volunteers", check_os13),
+    "DUP": ("no incident is handled by two declared cases", check_dup),
     "OL1": ("every candidate ends discarded or closed", check_ol1),
     "OL2": ("P1/P2: ambulance requested right after declaration", check_ol2),
     "OL3": ("triage 'not responding' -> guidance activated", check_ol3),

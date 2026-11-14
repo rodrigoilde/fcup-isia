@@ -24,7 +24,8 @@ class AlertReport:
         source_kind (str): "sensor" ou "witness".
         event_type (str): collapse_cardiac, fall_immobile, fall ou witness_collapse.
         confidence (float): Confiança local da fonte, entre 0 e 1.
-        cell (int): Localização grosseira: só o id da célula (D7).
+        cell (int): Célula onde está a fonte.
+        area (list): Posição da fonte arredondada ao cruzamento mais próximo, [x, y] (~100 m, D7).
         t_event (float): Quando o evento foi detetado ou visto.
         policy (str): alert_first, confirm_first ou human.
         prompt_status (str): Aviso ao portador: pending, no_response ou not_applicable.
@@ -39,6 +40,7 @@ class AlertReport:
     event_type: str
     confidence: float
     cell: int
+    area: list
     t_event: float
     policy: str
     prompt_status: str
@@ -123,12 +125,14 @@ class CorroborationQuery:
 
 @dataclass
 class CorroborationReply:
-    """P03: resumo da evidência de uma fonte próxima (só um veredicto e uma confiança).
+    """P03: resumo da evidência de uma fonte próxima (um veredicto, uma confiança e a área).
 
     Attributes:
         candidate_id (str): Candidato a corroborar.
         verdict (str): confirm, deny ou no_data.
         confidence (float): Confiança da evidência resumida, entre 0 e 1.
+        area (list | None): Área da observação que confirma (~100 m); o hub ignora confirmações de
+            outro local, que são de outro doente da mesma célula.
     """
 
     PROTOCOL = Protocol.CORROBORATION_REQUEST
@@ -137,6 +141,7 @@ class CorroborationReply:
     candidate_id: str
     verdict: str
     confidence: float
+    area: list | None = None
 
 
 @dataclass

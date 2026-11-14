@@ -21,7 +21,7 @@ import itertools
 
 from spade.behaviour import CyclicBehaviour
 
-from ..behaviours.privacy import decide_disclosure
+from ..behaviours.privacy import coarse_area, decide_disclosure
 from ..protocol.messages_assistance import HelpEnRoute, TakeoverRequest
 from ..protocol.messages_detection import (AlertAck, AlertReport, CorroborationQuery, CorroborationReply, GuidanceAck,
                                            GuidanceActivation, TriageAnswer, TriageQuestion)
@@ -58,6 +58,7 @@ class BystanderAgent(CEMRAgent):
         scene (tuple | None): Onde o cidadão viu o colapso (está ao lado do doente).
         scene_t (float): Quando o viu.
         scene_cell (int | None): Célula do local.
+        scene_area (list | None): Área do local (~100 m), que vai nos alertas.
         guidance (Guidance | None): Orientação em curso, se houver.
     """
 
@@ -71,6 +72,7 @@ class BystanderAgent(CEMRAgent):
         self.scene: tuple | None = None
         self.scene_t = 0.0
         self.scene_cell: int | None = None
+        self.scene_area: list | None = None
         self.guidance: Guidance | None = None
         self.service_handlers = {DisclosureRequest: self.on_disclosure_request}
         self.add_behaviour(Watching(), NEVER)
@@ -87,6 +89,7 @@ class BystanderAgent(CEMRAgent):
         self.scene = tuple(self.pos())
         self.scene_t = self.now()
         self.scene_cell = self.world.grid.cell_of(self.scene)
+        self.scene_area = coarse_area(self.scene, self.cfg["city"]["grid_spacing_m"])
         self.log("witnessing", cell=self.scene_cell)
         await self.register_with_hubs(RegistrationRole.WITNESS)       # contactável pelo hub do local
         will_report = event.get("will_report")                         # o guião pode fixar a decisão
@@ -101,7 +104,8 @@ class BystanderAgent(CEMRAgent):
         await self.sleep(self.uniform(wcfg["report_delay_s"]))
         alert_id = f"{self.label}-a{next(self.alert_ids)}"
         report = AlertReport(alert_id, SourceKind.WITNESS, EventType.WITNESS_COLLAPSE, wcfg["report_confidence"],
-                             self.scene_cell, self.now(), SensorPolicy.HUMAN, PromptStatus.NOT_APPLICABLE)
+                             self.scene_cell, self.scene_area, self.now(), SensorPolicy.HUMAN,
+                             PromptStatus.NOT_APPLICABLE)
         await self.raise_alert(report, self.scene_cell)
 
     async def on_message(self, inc: Incoming) -> None:
@@ -124,7 +128,8 @@ class BystanderAgent(CEMRAgent):
         seen = (self.at_scene() and self.scene_cell == query.cell
                 and query.window_from <= self.scene_t <= query.window_to)
         if seen:
-            reply = CorroborationReply(query.candidate_id, Verdict.CONFIRM, self.cfg["witness"]["report_confidence"])
+            confidence = self.cfg["witness"]["report_confidence"]
+            reply = CorroborationReply(query.candidate_id, Verdict.CONFIRM, confidence, self.scene_area)
         else:
             reply = CorroborationReply(query.candidate_id, Verdict.NO_DATA, 0.0)
         await self.reply(inc, reply)

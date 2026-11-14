@@ -5,8 +5,8 @@ Papéis: IncidentVerifier e IncidentCoordinator (uma CaseFSM por caso, em `case_
 (pedidos de serviço): registos P25, custódia do DAE P11/P12/P20, resumos de reputação P23, avisos
 de candidato P26 e heartbeats e réplicas P27 (em `hub_failover`).
 
-Um alerta novo (P01) junta-se a um candidato aberto da mesma célula dentro da janela de fusão
-(_MergeCandidates) ou abre um candidato novo, anunciado aos hubs vizinhos (P26).
+Um alerta novo (P01) junta-se a um candidato aberto da mesma célula e da mesma área (~100 m) dentro
+da janela de fusão (_MergeCandidates), ou abre um candidato novo, anunciado aos hubs vizinhos (P26).
 Desenho em docs/02-architectural-design.md §2 e docs/03-detailed-design.md §3.
 """
 
@@ -14,7 +14,7 @@ import itertools
 
 from ..behaviours.aed_custody import AEDCustody
 from ..behaviours.reputation import TrustTable
-from ..behaviours.verification import Belief
+from ..behaviours.verification import Belief, Candidate, notice_decision, same_incident
 from ..protocol.messages_detection import AlertCancel, AlertReport
 from ..protocol.messages_hubs import (CandidateMerge, CandidateNotice, CaseSnapshot, Deregistration, Heartbeat,
                                       HeartbeatAck, Registration, RegistrationAck, ReputationSummary)
@@ -102,13 +102,18 @@ class AEDHubAgent(CEMRAgent):
             await super().on_message(inc)
 
     def open_candidate_for(self, report: AlertReport) -> CaseFSM | None:
-        """_MergeCandidates: um candidato aberto da mesma célula, dentro da janela de fusão."""
-        window = self.cfg["verification"]["merge_window_s"]
+        """_MergeCandidates: um candidato aberto do mesmo incidente (mesma célula, perto no tempo e na área).
+
+        Fundir só por célula juntava num caso doentes diferentes da mesma célula (C3).
+        """
+        vcfg = self.cfg["verification"]
         for fsm in self.open_cases.values():
             case = fsm.case
             if case.state in (CaseState.CLOSED, CaseState.DISCARDED) or case.merged_into is not None:
                 continue
-            if case.cell == report.cell and self.now() - case.t_open <= window:
+            same = same_incident(case.area, case.t_open, report.area, self.now(), vcfg["merge_window_s"],
+                                 vcfg["merge_radius_m"])
+            if case.cell == report.cell and same:
                 return fsm
         return None
 
@@ -121,8 +126,8 @@ class AEDHubAgent(CEMRAgent):
             self.log("alert_merged", case=fsm.case.case_id, alert=report.alert_id, source=inc.sender)
             return
         case_id = f"{self.label}-c{next(self.case_ids)}"
-        record = CaseRecord(case_id, report.cell, self.now(), Belief(self.cfg["verification"]["prior"]),
-                            first_event_type=report.event_type)
+        prior = Belief(self.cfg["verification"]["prior"])
+        record = CaseRecord(case_id, report.cell, report.area, self.now(), prior, first_event_type=report.event_type)
         fsm = CaseFSM(self, record)
         self.open_cases[case_id] = fsm
         self.open_conversation(fsm)
@@ -136,25 +141,40 @@ class AEDHubAgent(CEMRAgent):
         self.open_cases.pop(fsm.case.case_id, None)
 
     # --- P26: duplicados na fronteira entre células ------------------------------------------------
+    @staticmethod
+    def notice_for(fsm: CaseFSM) -> CandidateNotice:
+        """O aviso P26 de um candidato nosso."""
+        case = fsm.case
+        return CandidateNotice(case.case_id, case.cell, case.area, case.t_open, case.first_event_type)
+
     async def announce_candidate(self, fsm: CaseFSM) -> None:
         """Anuncia um candidato novo aos hubs vizinhos."""
-        case = fsm.case
-        notice = CandidateNotice(case.case_id, case.cell, case.t_open, case.first_event_type)
+        notice = self.notice_for(fsm)
         for hub_id in self.neighbours:
-            await self.send_to(Directory.hub(hub_id), notice, thread=case.case_id)
+            await self.send_to(Directory.hub(hub_id), notice, thread=fsm.case.case_id)
 
     async def on_candidate_notice(self, inc: Incoming) -> None:
-        """Fica o candidato aberto primeiro (em empate, o do hub de menor id); se for o outro, larga o nosso."""
+        """P26: fica o candidato aberto primeiro (em empate, o do hub de menor id).
+
+        Se o nosso é o mais recente, larga-o; se é o mais antigo, responde com o nosso aviso para o
+        outro hub largar o dele. Antes só agia o hub com o candidato mais recente, e se esse tivesse
+        aberto o seu depois do aviso do outro nunca chegava a saber dele (casos duplicados).
+        """
         notice: CandidateNotice = inc.payload
-        theirs = (notice.t_open, Directory.hub_id(inc.sender))
-        window = self.cfg["verification"]["merge_window_s"]
-        near = set(self.world.grid.neighbours[notice.cell]) | {notice.cell}
+        vcfg = self.cfg["verification"]
+        theirs = Candidate(notice.t_open, Directory.hub_id(inc.sender), notice.area)
         for fsm in list(self.open_cases.values()):
             case = fsm.case
-            if case.state != CaseState.VERIFYING or case.merged_into is not None or case.cell not in near:
+            if case.merged_into is not None or case.state in (CaseState.CLOSED, CaseState.DISCARDED):
                 continue
-            if abs(case.t_open - notice.t_open) <= window and theirs < (case.t_open, self.hub_id):
+            ours = Candidate(case.t_open, self.hub_id, case.area)
+            decision = notice_decision(ours, theirs, vcfg["merge_window_s"], vcfg["merge_radius_m"])
+            if decision == "drop" and case.state == CaseState.VERIFYING:
                 await fsm.enqueue(inc.msg)          # a FSM vê o aviso e descarta-se
+                return
+            if decision == "reply":
+                await self.send_to(inc.sender, self.notice_for(fsm), thread=case.case_id)
+                self.log("duplicate_notified", case=case.case_id, other=notice.candidate_id, hub=inc.sender)
                 return
 
     async def drop_duplicate(self, fsm: CaseFSM) -> None:

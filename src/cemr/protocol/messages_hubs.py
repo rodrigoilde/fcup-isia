@@ -151,9 +151,12 @@ class Deregistration:
 class CandidateNotice:
     """P26: um hub abriu um candidato; os vizinhos verificam se é o mesmo incidente.
 
+    Também é a resposta de um hub com o mesmo incidente aberto antes, para o outro largar o seu.
+
     Attributes:
         candidate_id (str): Candidato acabado de abrir.
         cell (int): A sua célula.
+        area (list | None): Área do primeiro alerta (~100 m).
         t_open (float): Quando foi aberto.
         event_type (str): Tipo de evento do primeiro alerta.
     """
@@ -163,6 +166,7 @@ class CandidateNotice:
 
     candidate_id: str
     cell: int
+    area: list | None
     t_open: float
     event_type: str
 

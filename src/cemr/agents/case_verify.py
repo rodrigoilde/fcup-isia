@@ -8,7 +8,8 @@ tau(p) e um ramo de OS4 se verifica. Desenho em docs/03-detailed-design.md §2.4
 from dataclasses import asdict
 from typing import TYPE_CHECKING
 
-from ..behaviours.verification import KEY_QUESTIONS, case_priority, os4_branch, should_declare, triage_incoherent
+from ..behaviours.verification import (KEY_QUESTIONS, case_priority, close_areas, os4_branch, should_declare,
+                                       triage_incoherent)
 from ..protocol.messages_detection import (AlertAck, AlertReport, CancelAck, CorroborationQuery, GuidanceActivation,
                                            TriageQuestion)
 from ..protocol.messages_hubs import OutcomeLabels
@@ -99,9 +100,15 @@ async def query_neighbourhood(fsm: "CaseFSM") -> None:
 
 
 async def on_corroboration(fsm: "CaseFSM", inc: Incoming) -> None:
-    """P03: uma confirmação conta como fonte independente; uma testemunha que confirma recebe a triagem."""
+    """P03: uma confirmação conta como fonte independente; uma testemunha que confirma recebe a triagem.
+
+    Uma confirmação de outra área é de outro doente da mesma célula e é ignorada.
+    """
     reply = inc.payload
     if reply.verdict == Verdict.NO_DATA:
+        return
+    if reply.verdict == Verdict.CONFIRM and not close_areas(fsm.case.area, reply.area, fsm.vcfg["merge_radius_m"]):
+        fsm.log("corroboration_elsewhere", source=inc.sender)
         return
     src = fsm.source(inc.sender)
     if reply.verdict == Verdict.CONFIRM:

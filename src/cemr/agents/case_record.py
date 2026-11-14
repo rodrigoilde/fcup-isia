@@ -52,6 +52,7 @@ class CaseRecord:
     Attributes:
         case_id (str): Id do caso.
         cell (int): Célula onde foi aberto.
+        area (list | None): Área do primeiro alerta (~100 m); None num caso herdado (P28).
         t_open (float): Quando foi aberto.
         belief (Belief): Crença fundida de ser um incidente real.
         first_event_type (str): Tipo de evento do primeiro alerta (define a janela W_max).
@@ -75,6 +76,7 @@ class CaseRecord:
 
     case_id: str
     cell: int
+    area: list | None
     t_open: float
     belief: Belief
     first_event_type: str = ""
@@ -162,7 +164,7 @@ def record_from_snapshot(snap: CaseSnapshot, cfg: dict, trust, previous_owner: s
     Returns:
         CaseRecord: O caso, em acompanhamento (TRACKING).
     """
-    record = CaseRecord(snap.case_id, snap.cell, snap.t_open, Belief(cfg["verification"]["prior"]),
+    record = CaseRecord(snap.case_id, snap.cell, None, snap.t_open, Belief(cfg["verification"]["prior"]),
                         state=CaseState.TRACKING, priority=snap.priority, subject=snap.subject, ems=snap.ems,
                         awards={name: AwardInfo(**info) for name, info in snap.awards.items()},
                         guides=set(snap.guides), reservation=snap.reservation,

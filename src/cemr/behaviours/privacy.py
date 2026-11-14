@@ -33,6 +33,22 @@ class DisclosureDecision:
     reason: str
 
 
+def coarse_area(pos, spacing_m: float) -> list[float]:
+    """Localização grosseira de um alerta: a posição arredondada ao cruzamento mais próximo da grelha.
+
+    Com a grelha de 100 m da cidade, o hub fica a saber a zona (~100 m) em vez da posição exata.
+    Chega para separar doentes diferentes na mesma célula (revisão da D7).
+
+    Args:
+        pos: Posição [x, y] em metros.
+        spacing_m (float): Distância entre cruzamentos da grelha.
+
+    Returns:
+        list[float]: O cruzamento mais próximo, [x, y].
+    """
+    return [round(pos[0] / spacing_m) * spacing_m, round(pos[1] / spacing_m) * spacing_m]
+
+
 def may_receive(field_name: str, requester_kind: str) -> bool:
     """Indica se um tipo de agente precisa de saber um campo (OS5)."""
     if field_name in EMS_ONLY_FIELDS:

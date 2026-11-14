@@ -1,0 +1,88 @@
+"""Testes da fusão de alertas por área (T1.1), da deduplicação P26 simétrica e da regra DUP (T1.2)."""
+
+from cemr.behaviours.privacy import coarse_area
+from cemr.behaviours.verification import Candidate, close_areas, notice_decision, same_incident
+from cemr.config import load_config
+from cemr.metrics.check import check
+
+CFG = load_config("c1")
+WINDOW = CFG["verification"]["merge_window_s"]
+RADIUS = CFG["verification"]["merge_radius_m"]
+SPACING = CFG["city"]["grid_spacing_m"]
+
+
+def test_area_is_the_nearest_grid_crossing():
+    assert coarse_area([1449.0, 1551.0], SPACING) == [1400, 1600]
+
+
+def test_device_and_witness_of_the_same_patient_merge():
+    device = coarse_area([1520.0, 1480.0], SPACING)           # o doente usa o dispositivo
+    witness = coarse_area([1531.0, 1470.0], SPACING)          # a testemunha está a ~15 m
+    assert same_incident(device, 100.0, witness, 140.0, WINDOW, RADIUS)
+
+
+def test_patients_300_m_apart_do_not_merge():
+    a = coarse_area([1500.0, 1500.0], SPACING)
+    b = coarse_area([1500.0, 1800.0], SPACING)
+    assert not same_incident(a, 100.0, b, 110.0, WINDOW, RADIUS)
+
+
+def test_alerts_outside_the_window_do_not_merge():
+    area = coarse_area([1500.0, 1500.0], SPACING)
+    assert not same_incident(area, 100.0, area, 100.0 + WINDOW + 1, WINDOW, RADIUS)
+
+
+def test_unknown_area_is_never_close():
+    assert not close_areas(None, [100, 100], RADIUS)
+
+
+def test_newer_candidate_is_dropped():
+    ours = Candidate(140.0, 1, [1500, 1500])
+    theirs = Candidate(100.0, 3, [1500, 1500])
+    assert notice_decision(ours, theirs, WINDOW, RADIUS) == "drop"
+
+
+def test_older_candidate_replies_so_the_other_hub_drops_its_own():
+    ours = Candidate(100.0, 3, [1500, 1500])
+    theirs = Candidate(140.0, 1, [1500, 1500])
+    assert notice_decision(ours, theirs, WINDOW, RADIUS) == "reply"
+
+
+def test_tie_goes_to_the_lower_hub_id():
+    assert notice_decision(Candidate(100.0, 5, [0, 0]), Candidate(100.0, 2, [0, 0]), WINDOW, RADIUS) == "drop"
+    assert notice_decision(Candidate(100.0, 2, [0, 0]), Candidate(100.0, 5, [0, 0]), WINDOW, RADIUS) == "reply"
+
+
+def test_notice_outside_the_window_is_ignored():
+    ours = Candidate(100.0, 1, [1500, 1500])
+    theirs = Candidate(100.0 + WINDOW + 1, 3, [1500, 1500])
+    assert notice_decision(ours, theirs, WINDOW, RADIUS) is None
+
+
+def test_notice_of_a_far_candidate_is_ignored():
+    ours = Candidate(100.0, 1, [1500, 1500])
+    theirs = Candidate(110.0, 3, [1500, 1900])
+    assert notice_decision(ours, theirs, WINDOW, RADIUS) is None
+
+
+def ev(t, kind, **fields):
+    return {"t": t, "kind": kind, **fields}
+
+
+def test_dup_rule_flags_two_declared_cases_for_one_patient():
+    events = [ev(0, "gt_collapse", incident="I1", pos=[1000, 1000]),
+              ev(10, "case_declared", agent="hub1", case="hub1-c1", priority="P1", p=0.9, rule="reliable_human"),
+              ev(11, "case_declared", agent="hub3", case="hub3-c1", priority="P1", p=0.9, rule="reliable_human"),
+              ev(12, "case_located", agent="hub1", case="hub1-c1", location=[1000, 1010]),
+              ev(13, "case_located", agent="hub3", case="hub3-c1", location=[1005, 1000])]
+    assert check(events, CFG)["DUP"]
+
+
+def test_dup_rule_accepts_one_case_per_patient():
+    events = [ev(0, "gt_collapse", incident="I1", pos=[1000, 1000]),
+              ev(0, "gt_collapse", incident="I2", pos=[1300, 1000]),
+              ev(10, "case_declared", agent="hub1", case="hub1-c1", priority="P1", p=0.9, rule="reliable_human"),
+              ev(11, "case_declared", agent="hub1", case="hub1-c2", priority="P1", p=0.9, rule="reliable_human"),
+              ev(12, "case_located", agent="hub1", case="hub1-c1", location=[1000, 1010]),
+              ev(13, "case_located", agent="hub1", case="hub1-c2", location=[1300, 1010])]
+    assert not check(events, CFG)["DUP"]
