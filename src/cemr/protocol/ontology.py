@@ -1,7 +1,8 @@
-"""Ontology "cemr-v1": protocol identifiers, FIPA performatives and the enumerations used in messages.
+"""Ontologia "cemr-v1": identificadores dos protocolos, performativas FIPA e valores enumerados.
 
-Enum values are the English identifiers that travel in messages. Where the Gaia analysis used
-Portuguese names, PT_NAMES records the correspondence.
+Os valores dos enumerados são os identificadores em inglês que viajam nas mensagens. A
+correspondência com os nomes em português da análise Gaia está na tabela final de
+docs/04-protocols-and-messages.md.
 """
 
 from enum import Enum
@@ -11,7 +12,11 @@ LANGUAGE = "json"
 
 
 class StrEnum(str, Enum):
-    """Members compare and hash like their string values, so they work as keys of decoded JSON dicts."""
+    """Enumerado cujos membros se comportam como a string do seu valor.
+
+    Assim podem ser chaves de dicionários vindos de JSON e comparados diretamente com texto.
+    """
+
     __hash__ = str.__hash__
 
     def __str__(self) -> str:
@@ -19,6 +24,12 @@ class StrEnum(str, Enum):
 
 
 class Protocol(StrEnum):
+    """Protocolos do modelo de interação (P01-P28).
+
+    O P22 QueryTrust da análise não tem mensagens: o coordenador e o gestor de reputação são o
+    mesmo agente (o hub, decisão D2), por isso a consulta é uma leitura da tabela de confiança.
+    """
+
     RAISE_CANDIDATE_ALERT = "P01-RaiseCandidateAlert"
     CANCEL_ALERT = "P02-CancelAlert"
     CORROBORATION_REQUEST = "P03-CorroborationRequest"
@@ -40,7 +51,6 @@ class Protocol(StrEnum):
     HANDOVER_TO_EMS = "P19-HandoverToEMS"
     CLOSE_CASE = "P20-CloseCase"
     OUTCOME_FEEDBACK = "P21-OutcomeFeedback"
-    QUERY_TRUST = "P22-QueryTrust"
     SHARE_REPUTATION = "P23-ShareReputation"
     REQUEST_DISCLOSURE = "P24-RequestDisclosure"
     REGISTER_IN_CELL = "P25-RegisterInCell"
@@ -50,10 +60,13 @@ class Protocol(StrEnum):
 
     @property
     def code(self) -> str:
-        return self.value.split("-", 1)[0]
+        """O código curto do protocolo, por exemplo "P08"."""
+        return self.value.split("-")[0]
 
 
 class Performative(StrEnum):
+    """Performativas FIPA-ACL usadas, com o significado da especificação."""
+
     INFORM = "inform"
     CANCEL = "cancel"
     QUERY_REF = "query-ref"
@@ -70,35 +83,46 @@ class Performative(StrEnum):
 
 
 class Priority(StrEnum):
-    """Operational triage (analysis §2.2), not a clinical diagnosis."""
-    P1 = "P1"   # suspected cardiac arrest: CPR, AED and ambulance now
-    P2 = "P2"   # unconscious but breathing, serious fall, suspected stroke
-    P3 = "P3"   # minor fall, conscious person
+    """Triagem operacional (análise §2.2), não um diagnóstico clínico."""
+
+    P1 = "P1"   # suspeita de paragem cardíaca: RCP, DAE e ambulância já
+    P2 = "P2"   # inconsciente mas a respirar, queda grave, suspeita de AVC
+    P3 = "P3"   # queda ligeira, pessoa consciente
 
     @property
     def rank(self) -> int:
+        """1 para P1 (a mais grave), 2 para P2, 3 para P3."""
         return int(self.value[1])
 
 
 class SourceKind(StrEnum):
+    """Tipo de fonte de um alerta."""
+
     SENSOR = "sensor"
     WITNESS = "witness"
 
 
 class EventType(StrEnum):
-    COLLAPSE_CARDIAC = "collapse_cardiac"   # fall + immobility + absent/anomalous cardiac signal
-    FALL_IMMOBILE = "fall_immobile"         # fall + immobility, cardiac signal present
-    FALL = "fall"                           # fall, then movement
-    WITNESS_COLLAPSE = "witness_collapse"   # a citizen saw someone collapse
+    """Tipo de evento reportado num alerta P01."""
+
+    COLLAPSE_CARDIAC = "collapse_cardiac"   # queda + imobilidade + sinal cardíaco ausente ou anómalo
+    FALL_IMMOBILE = "fall_immobile"         # queda + imobilidade, com sinal cardíaco
+    FALL = "fall"                           # queda e depois movimento
+    WITNESS_COLLAPSE = "witness_collapse"   # um cidadão viu alguém cair
 
     @property
     def provisional_priority(self) -> "Priority":
-        """Worst plausible priority until triage says otherwise (a witness report is treated as P1)."""
-        return {"collapse_cardiac": Priority.P1, "fall_immobile": Priority.P2, "fall": Priority.P3,
-                "witness_collapse": Priority.P1}[self.value]
+        """A pior prioridade plausível até a triagem dizer o contrário (um relato de testemunha vale P1)."""
+        if self in (EventType.COLLAPSE_CARDIAC, EventType.WITNESS_COLLAPSE):
+            return Priority.P1
+        if self == EventType.FALL_IMMOBILE:
+            return Priority.P2
+        return Priority.P3
 
 
 class SensorPolicy(StrEnum):
+    """Política do dispositivo: alertar primeiro ou confirmar com o portador primeiro."""
+
     ADAPTIVE = "adaptive"
     ALERT_FIRST = "alert_first"
     CONFIRM_FIRST = "confirm_first"
@@ -106,19 +130,24 @@ class SensorPolicy(StrEnum):
 
 
 class PromptStatus(StrEnum):
+    """Estado do aviso "Está bem?" mostrado ao portador do dispositivo."""
+
     PENDING = "pending"
     NO_RESPONSE = "no_response"
     NOT_APPLICABLE = "not_applicable"
 
 
 class Verdict(StrEnum):
+    """Resposta a um pedido de corroboração P03."""
+
     CONFIRM = "confirm"
     DENY = "deny"
     NO_DATA = "no_data"
 
 
 class TriageQuestionId(StrEnum):
-    """Asked in the order of the basic life support algorithm (analysis P04)."""
+    """Perguntas da triagem P04, pela ordem do algoritmo de suporte básico de vida."""
+
     SCENE_SAFE = "scene_safe"
     RESPONSIVE = "responsive"
     BREATHING_NORMALLY = "breathing_normally"
@@ -126,34 +155,45 @@ class TriageQuestionId(StrEnum):
 
 
 class Answer(StrEnum):
+    """Resposta a uma pergunta da triagem."""
+
     YES = "yes"
     NO = "no"
     UNKNOWN = "unknown"
 
 
 class RegistrationRole(StrEnum):
+    """Papel com que um agente se regista no hub (P25)."""
+
     VOLUNTEER = "volunteer"
     WITNESS = "witness"
     SENSOR = "sensor"
 
 
 class Qualification(StrEnum):
+    """Qualificação de um voluntário."""
+
     NONE = "NONE"
     BLS = "BLS"                 # SBV
     BLS_AED = "BLS_AED"         # SBV-DAE
-    HEALTH_PRO = "HEALTH_PRO"   # health professional
+    HEALTH_PRO = "HEALTH_PRO"   # profissional de saúde
 
     @property
     def rank(self) -> int:
-        return ["NONE", "BLS", "BLS_AED", "HEALTH_PRO"].index(self.value)
+        """Posição na escala de qualificação (0 = nenhuma)."""
+        return list(Qualification).index(self)
 
 
 class TaskType(StrEnum):
+    """Tarefas que um caso pede aos voluntários."""
+
     GO_TO_PATIENT = "GO_TO_PATIENT"   # IR_AO_DOENTE
     FETCH_AED = "FETCH_AED"           # BUSCAR_DAE
 
 
 class ResponderStatus(StrEnum):
+    """Estados reportados por voluntários, testemunhas e ambulâncias (P13)."""
+
     EN_ROUTE = "EN_ROUTE"
     AT_AED = "AT_AED"
     AED_OK = "AED_OK"
@@ -175,6 +215,8 @@ ON_SCENE_STATUSES = {ResponderStatus.ON_SCENE, ResponderStatus.CPR_STARTED,
 
 
 class AEDState(StrEnum):
+    """Estado de um DAE no registo público (aedRegistry)."""
+
     AVAILABLE = "AVAILABLE"
     RESERVED = "RESERVED"
     IN_USE = "IN_USE"
@@ -182,6 +224,8 @@ class AEDState(StrEnum):
 
 
 class EMSState(StrEnum):
+    """Estado de uma ambulância."""
+
     AVAILABLE = "AVAILABLE"
     EN_ROUTE = "EN_ROUTE"
     ON_SCENE = "ON_SCENE"
@@ -189,6 +233,8 @@ class EMSState(StrEnum):
 
 
 class CaseState(StrEnum):
+    """Estado de um candidato ou caso no hub."""
+
     VERIFYING = "VERIFYING"
     DECLARED = "DECLARED"
     DISPATCHING = "DISPATCHING"
@@ -198,6 +244,8 @@ class CaseState(StrEnum):
 
 
 class Outcome(StrEnum):
+    """Resultado com que um caso é fechado."""
+
     FALSE_ALARM = "FALSE_ALARM"
     RESOLVED_ON_SCENE = "RESOLVED_ON_SCENE"
     TRANSPORTED = "TRANSPORTED"
@@ -205,6 +253,8 @@ class Outcome(StrEnum):
 
 
 class DisclosureField(StrEnum):
+    """Dados pessoais que podem ser pedidos por P24."""
+
     PRECISE_LOCATION = "precise_location"
     BUILDING_ACCESS = "building_access"
     CLINICAL = "clinical"
@@ -212,32 +262,7 @@ class DisclosureField(StrEnum):
 
 
 class CancelReason(StrEnum):
+    """Motivo de um cancelamento P02."""
+
     WEARER_OK = "wearer_ok"
     WITNESS_RETRACTS = "witness_retracts"
-
-
-# Correspondence with the Portuguese identifiers of the Gaia analysis.
-PT_NAMES = {
-    "IR_AO_DOENTE": TaskType.GO_TO_PATIENT,
-    "BUSCAR_DAE": TaskType.FETCH_AED,
-    "A_CAMINHO": ResponderStatus.EN_ROUTE,
-    "NO_DAE": ResponderStatus.AT_AED,
-    "DAE_OK": ResponderStatus.AED_OK,
-    "DAE_EM_FALTA": ResponderStatus.AED_MISSING,
-    "NO_LOCAL": ResponderStatus.ON_SCENE,
-    "RCP_INICIADA": ResponderStatus.CPR_STARTED,
-    "CHOQUE": ResponderStatus.SHOCK_DELIVERED,
-    "TESTEMUNHA_SILENCIOSA": ResponderStatus.WITNESS_SILENT,
-    "EMS_ASSUMIU": ResponderStatus.EMS_TOOK_OVER,
-    "DESISTÊNCIA": ResponderStatus.WITHDRAWN,
-    "CONFIRMAÇÃO_CLÍNICA": ResponderStatus.CLINICAL_CONFIRMATION,
-    "DISPONÍVEL": AEDState.AVAILABLE,
-    "RESERVADO": AEDState.RESERVED,
-    "EM_USO": AEDState.IN_USE,
-    "INDISPONÍVEL": AEDState.UNAVAILABLE,
-    "EM_MARCHA": EMSState.EN_ROUTE,
-    "TRANSPORTE": EMSState.TRANSPORT,
-    "FALSO_ALARME": Outcome.FALSE_ALARM,
-    "RESOLVIDO_NO_LOCAL": Outcome.RESOLVED_ON_SCENE,
-    "TRANSPORTADO": Outcome.TRANSPORTED,
-}

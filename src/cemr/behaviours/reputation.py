@@ -1,57 +1,83 @@
-"""Beta reputation (Jøsang & Ismail, 2002), decision D6 (resource trustTable[i]).
+"""Modelo de reputação Beta do papel ReputationManager (decisão D6, recurso trustTable).
 
-    trust = (α + d·α_rec + 1) / (α + β + d·(α_rec + β_rec) + 2)
+    confiança = (a + d * a_rec + 1) / (a + b + d * (a_rec + b_rec) + 2)
 
-α, β count this hub's own labelled outcomes (P21); α_rec, β_rec are the latest summaries received
-from each neighbouring hub (P23), summed and discounted by d, the trust in those peers. Everything
-decays towards the prior (_DecayTrust). An unknown pseudonym starts at 0.5, so switching pseudonym
-gives no advantage (OS13), and a peer's recommendation can never outweigh d times its own counts.
+a e b contam os resultados rotulados pelo próprio hub (P21). a_rec e b_rec são a soma dos
+últimos resumos recebidos de cada hub vizinho (P23), descontados por d, a confiança nesses pares.
+É a média da distribuição Beta com as recomendações descontadas (Jøsang e Ismail, 2002).
+As contagens decaem para o prior (_DecayTrust). Um pseudónimo novo começa em 0,5, por isso mudar
+de pseudónimo não dá vantagem (OS13). Desenho em docs/03-detailed-design.md §4.5.
 """
+
+MIN_COUNT = 1e-3   # contagens abaixo disto são esquecidas, para a tabela não crescer sem fim
 
 
 class TrustTable:
+    """Tabela de confiança de um hub, por pseudónimo.
+
+    Attributes:
+        enabled (bool): Se a reputação está ligada; desligada, todos têm confiança 0,5.
+        peer_discount (float): Desconto d aplicado às contagens dos hubs vizinhos.
+    """
+
     def __init__(self, enabled: bool = True, peer_discount: float = 0.5):
         self.enabled = enabled
         self.peer_discount = peer_discount
-        self._alpha: dict[str, float] = {}
-        self._beta: dict[str, float] = {}
-        self._peers: dict[str, dict[str, tuple[float, float]]] = {}     # peer -> pseudonym -> (α, β)
+        self.alpha: dict[str, float] = {}
+        self.beta: dict[str, float] = {}
+        self.peers: dict[str, dict[str, tuple[float, float]]] = {}   # hub -> pseudónimo -> (a, b)
 
-    def _recommended(self, pseudonym: str) -> tuple[float, float]:
-        a = sum(entries.get(pseudonym, (0.0, 0.0))[0] for entries in self._peers.values())
-        b = sum(entries.get(pseudonym, (0.0, 0.0))[1] for entries in self._peers.values())
+    def recommended(self, pseudonym: str) -> tuple[float, float]:
+        """Soma as contagens dos vizinhos sobre um pseudónimo, já descontadas por d."""
+        a = 0.0
+        b = 0.0
+        for entries in self.peers.values():
+            peer_a, peer_b = entries.get(pseudonym, (0.0, 0.0))
+            a += peer_a
+            b += peer_b
         return self.peer_discount * a, self.peer_discount * b
 
     def trust(self, pseudonym: str) -> float:
+        """Calcula a confiança numa fonte com o modelo de reputação Beta.
+
+        Args:
+            pseudonym (str): Pseudónimo da fonte.
+
+        Returns:
+            float: Confiança entre 0 e 1 (0,5 quando ainda não há observações).
+        """
         if not self.enabled:
             return 0.5
-        ra, rb = self._recommended(pseudonym)
-        a = self._alpha.get(pseudonym, 0.0) + ra
-        b = self._beta.get(pseudonym, 0.0) + rb
+        rec_a, rec_b = self.recommended(pseudonym)
+        a = self.alpha.get(pseudonym, 0.0) + rec_a
+        b = self.beta.get(pseudonym, 0.0) + rec_b
         return (a + 1.0) / (a + b + 2.0)
 
-    def observations(self, pseudonym: str) -> float:
-        ra, rb = self._recommended(pseudonym)
-        return self._alpha.get(pseudonym, 0.0) + self._beta.get(pseudonym, 0.0) + ra + rb
-
     def update(self, pseudonym: str, success: bool, weight: float = 1.0) -> float:
-        table = self._alpha if success else self._beta
+        """Junta um rótulo de resultado (P21) e devolve a nova confiança."""
+        table = self.alpha if success else self.beta
         table[pseudonym] = table.get(pseudonym, 0.0) + weight
         return self.trust(pseudonym)
 
     def decay(self, factor: float) -> None:
-        for table in (self._alpha, self._beta):
-            for key in list(table):
-                table[key] *= factor
-                if table[key] < 1e-3:
-                    del table[key]
+        """Multiplica todas as contagens próprias por `factor`, aproximando-as do prior."""
+        for table in (self.alpha, self.beta):
+            for name in list(table):
+                table[name] *= factor
+                if table[name] < MIN_COUNT:
+                    del table[name]
 
     def summary(self) -> list[dict]:
-        """Own counts only (never re-share recommendations, so they do not echo between hubs)."""
-        names = sorted(set(self._alpha) | set(self._beta))
-        return [{"pseudonym": n, "alpha": round(self._alpha.get(n, 0.0), 4),
-                 "beta": round(self._beta.get(n, 0.0), 4)} for n in names]
+        """Resumo para o gossip P23: só as contagens próprias.
+
+        As recomendações recebidas nunca são reenviadas, para não ecoarem entre hubs.
+        """
+        names = sorted(set(self.alpha) | set(self.beta))
+        return [{"pseudonym": n, "alpha": round(self.alpha.get(n, 0.0), 4), "beta": round(self.beta.get(n, 0.0), 4)}
+                for n in names]
 
     def merge(self, peer: str, entries: list[dict]) -> None:
-        """Replace the previous summary from `peer` (the latest one already includes its history)."""
-        self._peers[peer] = {e["pseudonym"]: (float(e["alpha"]), float(e["beta"])) for e in entries}
+        """Substitui o resumo anterior de um hub vizinho (o mais recente já inclui o histórico)."""
+        self.peers[peer] = {}
+        for entry in entries:
+            self.peers[peer][entry["pseudonym"]] = (float(entry["alpha"]), float(entry["beta"]))

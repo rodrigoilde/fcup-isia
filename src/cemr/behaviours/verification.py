@@ -1,10 +1,14 @@
-"""Evidence fusion and the declaration rule (decision D5, organisational rule OS4).
+"""Fusão de evidência e regra de declaração do papel IncidentVerifier (decisão D5, regra OS4).
 
-The hub keeps the log-odds of "this candidate is a real incident". Each piece of evidence adds
-    weight(trust) * confidence * ln(LR)
-where LR is the likelihood ratio of the evidence type (scenarios/defaults.toml) and the weight
-scales with the source's trust: a source at the prior trust counts at face value, a fully trusted
-one counts double, a distrusted one counts little (min(2, trust / trust_prior)).
+O hub guarda o log-odds de "este candidato é um incidente real". Cada evidência soma
+
+    peso(confiança na fonte) * confiança local * ln(LR)
+
+em que LR é a razão de verosimilhança do tipo de evidência (`scenarios/defaults.toml`). É a
+atualização bayesiana em log-odds, com as evidências tratadas como independentes dado o estado
+do doente, como num modelo naive Bayes (Russell e Norvig, 2022, cap. 12).
+
+Desenho em docs/03-detailed-design.md §4.1.
 """
 
 import math
@@ -12,65 +16,112 @@ from dataclasses import dataclass, field
 
 from ..protocol.ontology import Answer, EventType, Priority, SourceKind, TriageQuestionId
 
+KEY_QUESTIONS = (TriageQuestionId.RESPONSIVE, TriageQuestionId.BREATHING_NORMALLY)
+
 
 def logit(p: float) -> float:
+    """Converte uma probabilidade em log-odds."""
     return math.log(p / (1.0 - p))
 
 
 def evidence_weight(trust: float, trust_prior: float) -> float:
+    """Calcula o peso de uma evidência a partir da confiança na fonte.
+
+    Uma fonte com a confiança do prior conta pelo valor nominal, uma fonte de confiança total
+    conta a dobrar e uma fonte desacreditada quase não conta.
+
+    Args:
+        trust (float): Confiança na fonte, entre 0 e 1.
+        trust_prior (float): Confiança de uma fonte desconhecida.
+
+    Returns:
+        float: trust / trust_prior, limitado ao intervalo [0, 2].
+    """
     return max(0.0, min(2.0, trust / trust_prior))
 
 
-@dataclass
-class EvidenceItem:
-    source: str
-    kind: str
-    delta: float
-    log_odds: float
-
-
 class Belief:
+    """Crença do verificador de que o candidato é um incidente real.
+
+    Attributes:
+        log_odds (float): Log-odds atual da crença.
+    """
+
     def __init__(self, prior: float):
         self.log_odds = logit(prior)
-        self.history: list[EvidenceItem] = []
 
     @property
     def probability(self) -> float:
+        """Probabilidade correspondente ao log-odds atual."""
         return 1.0 / (1.0 + math.exp(-self.log_odds))
 
-    def add(self, source: str, kind: str, lr: float, confidence: float = 1.0, weight: float = 1.0) -> float:
-        delta = weight * max(0.0, min(1.0, confidence)) * math.log(lr)
+    def add(self, lr: float, confidence: float = 1.0, weight: float = 1.0) -> float:
+        """Soma uma evidência ao log-odds.
+
+        Args:
+            lr (float): Razão de verosimilhança do tipo de evidência.
+            confidence (float): Confiança local da fonte; é cortada ao intervalo [0, 1].
+            weight (float): Peso dado pela confiança na fonte (ver `evidence_weight`).
+
+        Returns:
+            float: Variação do log-odds.
+        """
+        confidence = max(0.0, min(1.0, confidence))
+        delta = weight * confidence * math.log(lr)
         self.log_odds += delta
-        self.history.append(EvidenceItem(source, kind, round(delta, 4), round(self.log_odds, 4)))
         return delta
 
 
 @dataclass
 class SourceView:
-    """What the verifier knows about one source of a candidate."""
+    """O que o verificador sabe sobre uma fonte de um candidato.
+
+    Attributes:
+        name (str): Pseudónimo da fonte.
+        kind (str): "sensor" ou "witness".
+        trust (float): Confiança na fonte no momento em que apareceu no candidato.
+        positive (bool): Se a fonte já deu evidência a favor.
+        cancelled (bool): Se o portador disse "estou bem" ou a testemunha retirou o relato.
+        wearer_no_response (bool): Se o portador do dispositivo não respondeu ao aviso.
+        event_type (str | None): Tipo de evento do alerta da fonte.
+        triage (dict): Respostas da triagem P04, pergunta -> resposta.
+        triage_scored (bool): Se a triagem completa já foi contada como evidência.
+    """
+
     name: str
-    kind: str                            # sensor | witness
+    kind: str
     trust: float
-    positive: bool = False               # has given supporting evidence
-    cancelled: bool = False              # wearer said "I'm fine" / witness retracted
+    positive: bool = False
+    cancelled: bool = False
     wearer_no_response: bool = False
     event_type: str | None = None
-    triage: dict = field(default_factory=dict)   # question -> answer
+    triage: dict = field(default_factory=dict)
     triage_scored: bool = False
 
     @property
     def triage_complete(self) -> bool:
-        return all(self.triage.get(q) in (Answer.YES, Answer.NO)
-                   for q in (TriageQuestionId.RESPONSIVE, TriageQuestionId.BREATHING_NORMALLY))
+        """Se as duas perguntas-chave (responde? respira normalmente?) têm resposta sim ou não."""
+        return all(self.triage.get(q) in (Answer.YES, Answer.NO) for q in KEY_QUESTIONS)
 
 
 def triage_incoherent(triage: dict) -> bool:
-    """A person who responds but does not breathe normally: at least one answer is wrong (F4)."""
-    return (triage.get(TriageQuestionId.RESPONSIVE) == Answer.YES
-            and triage.get(TriageQuestionId.BREATHING_NORMALLY) == Answer.NO)
+    """Indica se a triagem é incoerente (modo de falha F4).
+
+    Uma pessoa que responde mas não respira normalmente é impossível: pelo menos uma das respostas
+    está errada.
+    """
+    responsive = triage.get(TriageQuestionId.RESPONSIVE)
+    breathing = triage.get(TriageQuestionId.BREATHING_NORMALLY)
+    return responsive == Answer.YES and breathing == Answer.NO
 
 
 def triage_priority(triage: dict) -> Priority | None:
+    """Converte uma triagem coerente na prioridade operacional.
+
+    Returns:
+        Priority | None: P1 (não responde, não respira), P2 (não responde, respira),
+        P3 (responde), ou None se a triagem estiver incompleta ou for incoerente.
+    """
     if triage_incoherent(triage):
         return None
     responsive = triage.get(TriageQuestionId.RESPONSIVE)
@@ -85,41 +136,126 @@ def triage_priority(triage: dict) -> Priority | None:
 
 
 def source_priority(source: SourceView) -> Priority | None:
-    """A witness's coherent triage replaces its own provisional priority; otherwise the alert's event type."""
+    """Prioridade que uma fonte suporta.
+
+    A triagem coerente de uma testemunha substitui a prioridade provisória do seu próprio relato.
+    Nos outros casos vale a prioridade provisória do tipo de evento do alerta.
+    """
     if source.cancelled:
         return None
     if source.kind == SourceKind.WITNESS and source.triage_complete:
-        p = triage_priority(source.triage)
-        if p is not None:
-            return p
-    return EventType(source.event_type).provisional_priority if source.event_type else None
+        priority = triage_priority(source.triage)
+        if priority is not None:
+            return priority
+    if source.event_type:
+        return EventType(source.event_type).provisional_priority
+    return None
 
 
 def case_priority(sources: list[SourceView]) -> Priority:
-    """The most severe priority any active source supports (safety first, RNF5).
+    """Agrega as prioridades das fontes ativas com a regra "a mais grave ganha" (segurança, RNF5).
 
-    A witness's triage can lower its own report but not another source: a device reporting a cardiac
-    collapse whose wearer has not answered keeps the case at P1 even if a witness says "responsive".
+    A triagem de uma testemunha pode baixar o seu próprio relato, mas não o de outra fonte: um
+    dispositivo que reporta colapso cardíaco sem resposta do portador mantém o caso em P1, mesmo
+    que a testemunha diga que a pessoa responde.
+
+    Args:
+        sources (list[SourceView]): Fontes do candidato.
+
+    Returns:
+        Priority: A prioridade mais grave suportada, ou P3 se nenhuma fonte suporta nenhuma.
     """
-    priorities = [p for p in (source_priority(s) for s in sources) if p is not None]
-    return min(priorities, key=lambda p: p.rank) if priorities else Priority.P3
+    priorities = [source_priority(s) for s in sources]
+    priorities = [p for p in priorities if p is not None]
+    if not priorities:
+        return Priority.P3
+    return min(priorities, key=lambda p: p.rank)
 
 
 def os4_branch(sources: list[SourceView], human_min_trust: float) -> str | None:
-    """Which branch of OS4 is satisfied, if any.
+    """Indica que ramo da regra OS4 está satisfeito.
 
-    OS4: declare only if (independent sources >= 2) or (a reliable human) or
-    (an automatic alert whose wearer did not answer the prompt).
+    OS4: só se declara um incidente com pelo menos duas fontes independentes, ou com um humano
+    fiável, ou com um alerta automático cujo portador não respondeu ao aviso.
+
+    Args:
+        sources (list[SourceView]): Fontes do candidato.
+        human_min_trust (float): Confiança mínima para uma testemunha contar como humano fiável.
+
+    Returns:
+        str | None: "independent_sources", "reliable_human", "automatic_alert_no_response",
+        ou None se nenhum ramo se verifica.
     """
     active = [s for s in sources if s.positive and not s.cancelled]
     if len({s.name for s in active}) >= 2:
         return "independent_sources"
-    if any(s.kind == SourceKind.WITNESS and s.trust >= human_min_trust and s.triage_complete for s in active):
-        return "reliable_human"
-    if any(s.kind == SourceKind.SENSOR and s.wearer_no_response for s in active):
-        return "automatic_alert_no_response"
+    for s in active:
+        if s.kind == SourceKind.WITNESS and s.trust >= human_min_trust and s.triage_complete:
+            return "reliable_human"
+    for s in active:
+        if s.kind == SourceKind.SENSOR and s.wearer_no_response:
+            return "automatic_alert_no_response"
     return None
 
 
 def should_declare(probability: float, priority: Priority, tau: dict, branch: str | None) -> bool:
+    """Decide a declaração: a crença tem de chegar a tau(prioridade) e um ramo de OS4 tem de valer."""
     return branch is not None and probability >= tau[str(priority)]
+
+
+# --- fusão de alertas e duplicados (_MergeCandidates, P26) ---------------------------------------
+def close_areas(a: list | None, b: list | None, radius_m: float) -> bool:
+    """Se duas áreas (cruzamentos da grelha) estão a uma distância Manhattan de até `radius_m`."""
+    if a is None or b is None:
+        return False
+    return abs(a[0] - b[0]) + abs(a[1] - b[1]) <= radius_m
+
+
+def same_incident(area_a: list | None, t_a: float, area_b: list | None, t_b: float,
+                  window_s: float, radius_m: float) -> bool:
+    """Decide se dois alertas ou candidatos são o mesmo incidente: perto no tempo e no espaço.
+
+    Args:
+        area_a (list | None): Área do primeiro (ver `privacy.coarse_area`).
+        t_a (float): Instante do primeiro.
+        area_b (list | None): Área do segundo.
+        t_b (float): Instante do segundo.
+        window_s (float): Janela de fusão.
+        radius_m (float): Distância máxima entre as áreas.
+
+    Returns:
+        bool: True se estão dentro da janela e das áreas próximas.
+    """
+    return abs(t_a - t_b) <= window_s and close_areas(area_a, area_b, radius_m)
+
+
+@dataclass(frozen=True)
+class Candidate:
+    """Um candidato, como a deduplicação P26 o vê.
+
+    Attributes:
+        t_open (float): Quando foi aberto.
+        hub_id (int): Hub que o abriu.
+        area (list | None): Área do primeiro alerta.
+    """
+
+    t_open: float
+    hub_id: int
+    area: list | None
+
+
+def notice_decision(ours: Candidate, theirs: Candidate, window_s: float, radius_m: float) -> str | None:
+    """Decisão de um hub ao receber o aviso P26 de um candidato de um vizinho.
+
+    Fica o candidato aberto primeiro; em empate, o do hub de menor id. Quem tem o mais recente larga-o
+    ("drop"); quem tem o mais antigo responde com o seu aviso ("reply"), para o outro hub saber que
+    deve largar o dele. Só responde quem tem o candidato mais antigo, por isso não há ciclos.
+
+    Returns:
+        str | None: "drop", "reply", ou None se não é o mesmo incidente.
+    """
+    if not same_incident(ours.area, ours.t_open, theirs.area, theirs.t_open, window_s, radius_m):
+        return None
+    if (theirs.t_open, theirs.hub_id) < (ours.t_open, ours.hub_id):
+        return "drop"
+    return "reply"

@@ -1,1 +1,1 @@
-"""Simulation infrastructure (not Gaia roles): clock, world, patient, incidents, network, faults."""
+"""Infraestrutura da simulação (não são papéis Gaia): relógio, cidade, ambiente, doentes, incidentes e rede."""

@@ -9,10 +9,13 @@ clock_factor = 10                 # spikes/README.md: real delays distort sim ti
 seed = 1
 start_batch = 10                  # agents started concurrently (pyjabber drops login bursts)
 start_retries = 4
+max_suspend_s = 2.0               # validity: the machine may not be suspended for longer than this
+max_stall_sim_s = 2.0             # validity: largest event-loop stall, in simulated seconds
 
 [city]                            # A1: grid city, Manhattan travel
 size_m = 3000
 grid_spacing_m = 100
+scene_radius_m = 30                # who is this close to a patient is "on scene" (a witness stands 5-15 m away)
 
 [population]                      # analysis §8.3 "Dimensão"
 devices = 40                      # citizen sensor devices (SensorMonitor)
@@ -29,6 +32,7 @@ p1_shockable = 0.4                # fraction of P1 with a shockable rhythm
 p_wearer = 0.5                    # patient wears one of the citizen devices
 p_witness = 0.6                   # a bystander sees the collapse (A5)
 witness_busy_s = 1800             # a bystander witnesses at most one incident per 30 min
+witness_distance_m = [5, 15]      # distance from the witness to the patient
 surge = {}                        # C3: { t_s, duration_s, count, centre = [x, y], radius_m, p_witness }
 
 [sensors]                         # A2
@@ -40,6 +44,11 @@ policy = "adaptive"               # adaptive (AlertFirst only for P1-like signal
 drifting_devices = 0              # F3: devices whose sensors drift (C2)
 drift_fp_per_hour = 1.0
 drift_p_cardiac_flag = 0.6
+quality_true = [0.7, 1.0]         # signal quality of a real collapse; scales the device's confidence
+quality_false = [0.5, 1.0]        # signal quality of a false positive
+p_immobile_on_fp = 0.5            # false positives that also show immobility
+drift_p_immobile = 0.8
+event_confidence = { collapse_cardiac = 0.95, fall_immobile = 0.8, fall = 0.5 }   # x signal quality
 
 [wearer]
 prompt_countdown_s = 30           # "Are you OK?" countdown (analysis §8.3: 30–60 s)
@@ -48,6 +57,8 @@ response_delay_s = [3, 25]
 
 [witness]                         # A5
 p_report = 0.8
+report_confidence = 0.8           # confidence a witness puts in its own report (P01) and confirmation (P03)
+scene_memory_s = 900              # a witness can answer about a scene for this long after seeing it
 report_delay_s = [20, 60]
 p_answer = 0.95                   # answers each triage question
 answer_delay_s = [3, 10]
@@ -59,6 +70,9 @@ p_give_up_per_cycle = 0.03        # extra per compression cycle after the second
 tired_after_cycles = 3            # reports TIRED from the third two-minute cycle on
 t_silence_s = 20                  # T_silence: guide repeats, then reports WITNESS_SILENT
 false_report_per_hour = 0.0       # F4: a citizen misreads a scene (someone asleep looks unconscious) (C2)
+false_report_radius_m = 200       # the misread scene is within this distance of the citizen's home
+pranksters = 0                    # C5: citizens who keep reporting collapses that did not happen
+prankster_rate_per_hour = 4.0     # false reports per prankster per hour
 
 [volunteers]                      # A6
 p_accept = 0.7
@@ -67,8 +81,12 @@ modes = { foot = 0.6, bike = 0.2, car = 0.2 }
 qualification_mix = { BLS = 0.3, BLS_AED = 0.6, HEALTH_PRO = 0.1 }
 max_alerts_per_hour = 6           # OS8 A_max
 max_consecutive_awards = 3        # OS8 K_max
+award_window_s = 7200             # OS8: awards older than this no longer count towards K_max
 aed_retrieval_s = 30              # unlocking and taking the AED out of the cabinet
-p_no_show = 0.05                  # awarded but never arrives: half withdraw on the way, half go silent
+aed_answer_timeout_s = 20         # without an answer from the cabinet's hub, the runner goes on without the AED
+p_no_show = 0.05                  # awarded but never arrives
+p_withdraw_if_no_show = 0.5       # of those, the share that withdraws on the way (the others go silent)
+withdraw_after_s = [30, 120]      # when a withdrawing volunteer gives up
 speed_variability = [1.0, 1.3]    # real travel time / estimated travel time
 max_on_scene_s = 1800             # give up a mission whose release was lost (F5)
 
@@ -84,7 +102,10 @@ ambulance = { speed = 8.3, overhead_s = 0 }   # ~30 km/h average in urban traffi
 # (e.g. INEM response-time data) before the report.
 dispatch_delay_s = 240
 care_on_scene_s = 180
+roster_wait_s = 10                # wait for the coordinator's list of who is on scene (P13)
+handover_wait_s = 20              # wait for the handover summary (P19)
 transport_s = 600                 # until the unit is available again
+first_shock_delay_s = 60          # M6: without a bystander AED, the crew's first shock comes this long after arrival
 
 [aed]
 restock_s = 1800                  # a used AED is out of service until checked and restocked
@@ -114,10 +135,12 @@ discard_below = 0.03              # discard early once the belief falls below th
 retract_below = 0.3               # P07: a declared case whose belief falls below this is retracted
 corroboration_deadline_s = 10
 alert_ack_timeout_s = 10          # without an AlertAck, the source tries the hub's successor (F6)
+alert_hubs_tried = 3              # the cell's hub and then up to two successors
 retry_after_s = 20                # F5: resend an unacknowledged request after this long
 max_retries = 2
 triage_deadline_s = 12              # witnesses answer in 3-10 s; leaves room for a retry inside W_max
 merge_window_s = 90
+merge_radius_m = 100              # alerts merge if their areas (100 m grid) are this close (Manhattan)
 trust_prior = 0.5
 human_reliable_min_trust = 0.4    # a witness at or above this trust counts as a "reliable human" (OS4)
 
@@ -169,12 +192,18 @@ hub_crashes = []                  # [[faults.hub_crashes]] hub = 3, at_s = 900
 retention_s = 600                 # T_ret: personal data purged at most this long after CloseCase
 max_retention_s = 7200            # fallback purge if the closure never reaches the guardian
 
+[metrics]                         # only used to compute the metrics, never by the agents
+match_radius_m = 50               # a disclosed location this close to a patient is matched to that incident
+central_radius_m = 1000           # M13: incidents within this distance of the city centre are "central"
+report_window_s = 120             # M2: an alert from the patient's device or witness this soon after the collapse means it was reported
+
 [registration]                    # D3: register with hubs up to this ring distance
 ring = { volunteer = 2, witness = 1, sensor = 1 }
 
 [policy]                          # variation points (docs/02 §9)
 allocation = "contract_net"       # contract_net | naive (baseline B1)
 reputation = true
+guidance = true                   # false: no bystander guidance (P05), to separate its effect from allocation
 
 [scripted]                        # incidents injected at fixed times, on top of the Poisson process
 incidents = []                    # [[scripted.incidents]] t_s, priority, shockable, wearer, witness

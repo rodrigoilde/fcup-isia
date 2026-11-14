@@ -1,4 +1,5 @@
-"""Scenario configuration: scenarios/defaults.toml deep-merged with a scenario file and CLI overrides."""
+"""Configuração de um cenário: scenarios/defaults.toml, fundido com o ficheiro do cenário e com as
+alterações pedidas na linha de comandos."""
 
 import copy
 import tomllib
@@ -10,7 +11,7 @@ DEFAULTS_FILE = SCENARIOS_DIR / "defaults.toml"
 
 
 def deep_merge(base: dict, override: dict) -> dict:
-    """Return a copy of `base` with `override` applied recursively (lists and scalars are replaced)."""
+    """Devolve uma cópia de `base` com `override` aplicado recursivamente (listas e valores são substituídos)."""
     merged = copy.deepcopy(base)
     for key, value in override.items():
         if isinstance(value, dict) and isinstance(merged.get(key), dict):
@@ -21,7 +22,11 @@ def deep_merge(base: dict, override: dict) -> dict:
 
 
 def resolve_scenario(name_or_path: str) -> Path:
-    """Accept a path, a file name in scenarios/, or a short id such as "c1" (matches c1_*.toml)."""
+    """Aceita um caminho, um ficheiro de scenarios/ ou um id curto como "c1" (que corresponde a c1_*.toml).
+
+    Raises:
+        FileNotFoundError: Se o cenário não existe.
+    """
     path = Path(name_or_path)
     if path.is_file():
         return path
@@ -35,6 +40,7 @@ def resolve_scenario(name_or_path: str) -> Path:
 
 
 def load_config(scenario: str | None = None, overrides: dict | None = None) -> dict:
+    """Lê os parâmetros por omissão e aplica o cenário e as alterações, por esta ordem."""
     with DEFAULTS_FILE.open("rb") as fh:
         cfg = tomllib.load(fh)
     if scenario:
