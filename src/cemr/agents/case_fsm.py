@@ -198,7 +198,7 @@ class CaseFSM(Conversation):
     def add_evidence(self, src: SourceView, kind: str, confidence: float = 1.0) -> None:
         lr = self.vcfg["likelihood_ratio"][kind]
         weight = evidence_weight(src.trust, self.vcfg["trust_prior"])
-        delta = self.case.belief.add(src.name, kind, lr, confidence, weight)
+        delta = self.case.belief.add(lr, confidence, weight)
         self.log("evidence", source=src.name, evidence=kind, confidence=round(confidence, 3),
                  weight=round(weight, 3), delta=round(delta, 3), p=round(self.case.belief.probability, 4))
 

@@ -28,7 +28,7 @@ LR = V["likelihood_ratio"]
 def belief_after(*items):
     b = Belief(V["prior"])
     for kind, conf in items:
-        b.add("s", kind, LR[kind], conf)
+        b.add(LR[kind], conf)
     return b.probability
 
 

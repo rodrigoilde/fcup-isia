@@ -20,8 +20,7 @@ from ..behaviours.reputation import TrustTable
 from ..protocol.messages import (AEDRelease, AEDReservation, AEDReservationCancel, AEDReservationRefusal,
                                  AEDReservationRequest, AEDRetrieval, AEDRetrievalFailure, AEDUnlock, AlertCancel,
                                  AlertReport, CandidateMerge, CandidateNotice, CaseSnapshot, Deregistration,
-                                 Heartbeat, HeartbeatAck, Registration, RegistrationAck, ReputationSummary,
-                                 TrustQuery, TrustReply)
+                                 Heartbeat, HeartbeatAck, Registration, RegistrationAck, ReputationSummary)
 from ..protocol.ontology import AEDState, CaseState
 from ..sim.directory import Directory
 from .base import CEMRAgent, Incoming
@@ -62,7 +61,6 @@ class AEDHubAgent(CEMRAgent):
             AEDReservationCancel: self.on_reservation_cancel,
             AEDRetrieval: self.on_retrieve,
             AEDRelease: self.on_aed_release,
-            TrustQuery: self.on_trust_query,
             ReputationSummary: self.on_reputation_summary,
             CandidateNotice: self.on_candidate_notice,
             Heartbeat: self.on_heartbeat,
@@ -214,11 +212,6 @@ class AEDHubAgent(CEMRAgent):
             trust = self.trust.update(label["pseudonym"], label["success"], label.get("weight", 1.0))
             self.log("trust_update", case=case_id, pseudonym=label["pseudonym"], role=label["kind"],
                      success=label["success"], trust=round(trust, 3))
-
-    async def on_trust_query(self, inc: Incoming) -> None:
-        names = inc.payload.pseudonyms
-        await self.reply(inc, TrustReply({n: {"trust": self.trust.trust(n), "n": self.trust.observations(n)}
-                                          for n in names}))
 
     async def decay_trust(self) -> None:
         self.trust.decay(self.cfg["reputation"]["decay_factor"])
