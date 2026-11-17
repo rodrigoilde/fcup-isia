@@ -3,7 +3,9 @@
     confiança = (a + d * a_rec + 1) / (a + b + d * (a_rec + b_rec) + 2)
 
 a e b contam os resultados rotulados pelo próprio hub (P21). a_rec e b_rec são a soma dos
-últimos resumos recebidos de cada hub vizinho (P23), descontados por d, a confiança nesses pares.
+últimos resumos recebidos de cada hub vizinho (P23), descontados por um d fixo (0,5 em
+`scenarios/defaults.toml`): os hubs são infraestrutura instalada e confiam uns nos outros ao nível
+do prior, por isso não se mantém uma confiança própria em cada par.
 É a média da distribuição Beta com as recomendações descontadas (Jøsang e Ismail, 2002).
 As contagens decaem para o prior (_DecayTrust). Um pseudónimo novo começa em 0,5, por isso mudar
 de pseudónimo não dá vantagem (OS13). Desenho em docs/03-detailed-design.md §4.5.

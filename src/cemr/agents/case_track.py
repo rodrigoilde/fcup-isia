@@ -7,13 +7,14 @@ ambulância assume (OL7), e repete os pedidos perdidos (F5). Desenho em docs/03-
 
 from typing import TYPE_CHECKING
 
+from ..behaviours.tracking import AwardInfo, enough_on_scene, late_awards, surplus_awards
 from ..protocol.messages_detection import Retraction
 from ..protocol.messages_hubs import Takeover
 from ..protocol.messages_response import OnSceneRoster, Release
 from ..protocol.ontology import ON_SCENE_STATUSES, Outcome, Priority, ResponderStatus, TaskType
 from .case_awards import award, award_open_slots, call_responders, cancel_reservation, offers, reject_losers, uncovered
 from .case_dispatch import award_ambulance, call_ambulance, request_location, send_help_notice
-from .case_record import CLOSE, AwardInfo
+from .case_record import CLOSE
 from .conversation import Incoming, Step
 
 if TYPE_CHECKING:
@@ -98,13 +99,11 @@ def anyone_on_scene(fsm: "CaseFSM") -> bool:
 # --- OL6: acompanhamento e novo recrutamento ---------------------------------------------------------
 def flag_late(fsm: "CaseFSM") -> list[str]:
     """Marca as adjudicações que passaram de ETA + δ sem chegar; devolve os voluntários marcados agora."""
-    newly_late = []
-    now = fsm.now()
-    for name, info in fsm.case.awards.items():
-        if info.active and info.on_scene_t is None and not info.late and now > info.arrive_by:
-            info.late = True
-            newly_late.append(name)
-            fsm.log("award_at_risk", responder=name, task=info.task)
+    newly_late = late_awards(fsm.case.awards, fsm.now())
+    for name in newly_late:
+        info = fsm.case.awards[name]
+        info.late = True
+        fsm.log("award_at_risk", responder=name, task=info.task)
     return newly_late
 
 
@@ -182,13 +181,11 @@ async def release_surplus(fsm: "CaseFSM") -> None:
     """OL8: com N_need socorristas no local, dispensa os que ainda vêm a caminho (menos um DAE por entregar)."""
     case = fsm.case
     n_need = fsm.dcfg["n_need"].get(str(case.priority), 1)
-    if sum(1 for a in case.awards.values() if a.on_scene_t is not None and a.active) < n_need:
+    if not enough_on_scene(case.awards, n_need):
         return
-    aed_done = any(a.aed_delivered for a in case.awards.values())
-    for name, info in case.awards.items():
-        if info.active and info.on_scene_t is None and (info.task != TaskType.FETCH_AED or aed_done):
-            info.status = "released"
-            await send_release(fsm, name, "enough_on_scene")
+    for name in surplus_awards(case.awards):
+        case.awards[name].status = "released"
+        await send_release(fsm, name, "enough_on_scene")
     case.call_deadline = None
 
 

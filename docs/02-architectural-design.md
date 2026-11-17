@@ -156,8 +156,10 @@ The baseline **B1** replaces all of this with "alert everyone in the radius; fir
 
 ### D5 — Evidence fusion and thresholds
 
-**Log-odds Bayesian fusion.** The hub keeps, per candidate, `L = log-odds(prior of incident in the
-cell)`. Each piece of evidence `e` from source `s` adds `trust(s) · log LR(type(e))`.
+**Log-odds fusion with trust weights.** The hub keeps, per candidate, `L = log-odds(prior of incident in the
+cell)`. Each piece of evidence `e` from source `s` adds `trust(s) · log LR(type(e))`. With unit weights this is
+the Bayesian update of naive Bayes; weighting `log LR` by trust is a heuristic (a tempered likelihood) that
+gives less force to unreliable sources, not an exact Bayesian update.
 
 - **Likelihood ratios** per evidence type come from the sensor and witness models (TPR/FPR) in the
   scenario files.
@@ -177,7 +179,8 @@ cell)`. Each piece of evidence `e` from source `s` adds `trust(s) · log LR(type
   and β. Both decay towards the prior at rate `γ` per hour.
 - **New pseudonyms** start at the prior (OS13), so changing pseudonym gives no advantage.
 - **Gossip.** Neighbouring hubs exchange `(pseudonym, α, β)` summaries periodically through P23.
-  A recommendation from hub `h` is discounted by the hub's own trust in `h` before it is merged.
+  A recommendation from a neighbour is discounted by a fixed factor `d = 0.5` before it is merged. Hubs
+  are provisioned infrastructure, so they trust each other at the prior and no per-peer trust is kept.
 - **Variant.** Reputation can be switched off (all trust = prior). This is compared in C2 and C5.
 
 ### D7 — Privacy mechanisms
@@ -294,7 +297,7 @@ logged. Message sequences and JSON schemas are specified in `04-protocols-and-me
 | ID | Protocol | Initiator → partner | FIPA pattern · performatives | Scope |
 |---|---|---|---|---|
 | P01 | RaiseCandidateAlert | device / witness → hub of own cell | inform → inform(ack with candidate id) | network |
-| P02 | CancelAlert | device / witness → hub | cancel → inform | network |
+| P02 | CancelAlert | device / witness → hub | inform → inform (FIPA `cancel` withdraws a requested action; here the source informs that its alert was false) | network |
 | P03 | CorroborationRequest | hub → devices and witnesses registered in cell + ring 1 | FIPA-Query: query-ref → inform / refuse, deadline | network |
 | P04 | TriageQuestionnaire | hub → witness on scene | FIPA-Query: query-if → inform, repeated | network |
 | P05 | ActivateGuidance | hub → guide on witness device | FIPA-Request: request → agree / refuse | network |

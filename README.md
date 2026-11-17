@@ -18,8 +18,16 @@ cases with a Contract Net, keep reputation, and take over each other's cases whe
 > - Since the first experiment matrix: alerts merge by a 100 m area instead of by cell, duplicate cases
 >   across cell borders are resolved by both hubs, scenario C5 (adversarial sources) and a variant
 >   without bystander guidance were added, and the code was simplified and documented in Portuguese.
-> - Next: the final experiment matrix (commit tagged `matrix-final`), the performance report and the
->   slides.
+> - After the audit of 16 Nov:
+>   - a witness's triage that contradicts its own report ("responds") is asked again before it lowers the
+>     case to P3;
+>   - half of the drifting sensors' false positives in C2 go unanswered;
+>   - M9 is also measured from the declaration;
+>   - M12 has message-loss variants;
+>   - the analysis separates the effect of guidance from that of coordination.
+> - Next: the final experiment matrix on the commit tagged `matrix-final`, then the performance report
+>   and the slides. The numbers now in `results/` come from commit `67a012b` and are superseded by that
+>   matrix.
 
 ## Setup
 
@@ -104,7 +112,7 @@ This re-derives the rules of the Gaia analysis from the audit log:
 
 ```bash
 python experiments/run_matrix.py --matrix smoke --seeds 1-2 --duration 1200   # ~15 min: 7 configurations
-python experiments/run_matrix.py --matrix main --seeds 1-10 --workers 4       # ~5–6 h (macOS: prefix caffeinate -i)
+python experiments/run_matrix.py --matrix main --seeds 1-10 --workers 4       # ~6–7 h (macOS: prefix caffeinate -i)
 powershell -ExecutionPolicy Bypass -File experiments\run_overnight.ps1        # Windows: main matrix, retries, analysis
 python experiments/analyse.py
 ```
@@ -112,10 +120,10 @@ python experiments/analyse.py
 `run_matrix.py` runs configurations × seeds in parallel, each run with its own XMPP server. It skips
 runs that are already valid **for the current commit** and refuses to start with uncommitted changes in
 `src/`, `scenarios/` or `experiments/`, so the final results come from one version of the code. Each
-matrix has its own folder, `runs/<matrix>/<scenario>-<variant>-s<seed>/`. The main matrix has 19
+matrix has its own folder, `runs/<matrix>/<scenario>-<variant>-s<seed>/`. The main matrix has 21
 configurations:
 
-- C1: the system as designed, baseline B1 and without bystander guidance;
+- C1: the system as designed, baseline B1, without bystander guidance, and 10 % and 20 % message loss (M12);
 - C2: as designed, B1, AlertFirst, ConfirmFirst and without reputation;
 - C3: as designed, B1, without guidance, and redundancy k = 1 and k = 3;
 - C4: as designed, B1 and without guidance;
@@ -126,7 +134,7 @@ configurations:
 | File | Contents |
 |---|---|
 | `summary.csv`, `summary.md` | Means with 95 % CI per configuration and metric, with the code commit |
-| `paired.csv`, `paired.md` | Each variant minus "ours", paired by seed: mean, 95 % CI and in how many seeds ours was better |
+| `paired.csv`, `paired.md` | Each variant minus "ours", paired by seed: mean, 95 % CI and in how many seeds ours was better. In C1, C3 and C4 also "B1 − No guidance": both lack guidance, so it isolates verification, Contract Net and reputation |
 | `fig_c1.png` … `fig_c5.png` | Means per scenario |
 | `fig_c1_paired.png` … | Paired differences per scenario |
 

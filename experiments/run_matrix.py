@@ -36,6 +36,8 @@ NO_REPUTATION = {"policy.reputation": "false"}
 MATRICES = {
     "main": [
         ("c1", "ours", {}), ("c1", "naive", NAIVE), ("c1", "no_guidance", NO_GUIDANCE),
+        # M12 como na análise: degradação de M3-M5 com mensagens perdidas (o C1 tem 0 % de perdas)
+        ("c1", "loss10", {"network.loss": "0.1"}), ("c1", "loss20", {"network.loss": "0.2"}),
         ("c2", "ours", {}), ("c2", "naive", NAIVE),
         ("c2", "alert_first", {"sensors.policy": '"alert_first"'}),
         ("c2", "confirm_first", {"sensors.policy": '"confirm_first"'}),

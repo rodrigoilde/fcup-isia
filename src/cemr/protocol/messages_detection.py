@@ -75,7 +75,7 @@ class AlertCancel:
     """
 
     PROTOCOL = Protocol.CANCEL_ALERT
-    PERFORMATIVES = (Pf.CANCEL,)
+    PERFORMATIVES = (Pf.INFORM,)    # em FIPA, cancel retira um pedido de ação; aqui informa-se que o alerta era falso
 
     alert_id: str
     reason: str

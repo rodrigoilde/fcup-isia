@@ -199,9 +199,12 @@ def false_sensor_events(cfg: dict, layout: Layout, rng: random.Random, duration_
         drift = device in drifting
         rate = scfg["drift_fp_per_hour"] if drift else scfg["fp_per_device_hour"]
         for t in poisson_times(rng, rate / 3600.0, duration_s):
+            able = True
+            if drift:            # só se sorteia com deriva, para o traço dos cenários sem deriva não mudar
+                able = rng.random() >= scfg["drift_p_no_response"]
             stimuli.append({"t": t, "kind": "sensor_event", "device": device, "incident": None, "drift": drift,
                             "features": false_positive_features(cfg, rng, drift),
-                            "wearer_response_s": wearer_response_delay(cfg, True, rng)})
+                            "wearer_response_s": wearer_response_delay(cfg, able, rng)})
     return stimuli
 
 

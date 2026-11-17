@@ -33,6 +33,8 @@ METRICS = [
     ("M2_verification.recall_P1_P2_detectable", "M2 recall (detectable)", "%", "higher"),
     ("M2_verification.recall_P1_P2_reported", "M2 recall (reported)", "%", "higher"),
     ("M2_verification.false_dispatches", "M2 false dispatches", "per run", "lower"),
+    ("M2_verification.false_dispatches_witness", "M2 false dispatches with a witness", "per run", "lower"),
+    ("M2_verification.false_dispatches_sensor_only", "M2 false dispatches from sensors only", "per run", "lower"),
     ("M3_time_to_cpr_s.median", "M3 time to CPR", "s", "lower"),
     ("M3_time_to_cpr_s.by_bystander_pct", "M3 CPR started by a bystander", "%", "higher"),
     ("M4_time_to_aed_s.median", "M4 time to AED", "s", "lower"),
@@ -41,13 +43,27 @@ METRICS = [
     ("M7_coverage_before_ems_pct.volunteer", "M7 volunteer before EMS", "%", "higher"),
     ("M7_coverage_before_ems_pct.aed", "M7 AED before EMS", "%", "higher"),
     ("M8_messages.per_candidate", "M8 messages per candidate", "msgs", "lower"),
-    ("M9_gap_to_oracle_s.median", "M9 gap to oracle B0", "s", "lower"),
+    ("M8_messages.sent", "M8 all messages, heartbeats included", "msgs per run", "lower"),
+    ("M8_messages.background", "M8 background messages (P23, P25, P27)", "msgs per run", "lower"),
+    ("M9_gap_to_oracle_s.median", "M9 gap to oracle B0 from the collapse", "s", "lower"),
+    ("M9_gap_to_oracle_s.dispatch_median", "M9 gap to oracle B0 from the declaration", "s", "lower"),
     ("M10_volunteer_load.alerts_per_volunteer", "M10 alerts per volunteer", "alerts", "lower"),
+    ("M10_volunteer_load.jain_tasks", "M10 Jain index of tasks", "0-1", "higher"),
     ("M10_volunteer_load.false_alarm_minutes", "M10 minutes on false alarms", "min", "lower"),
     ("M11_privacy_exposure.recipients_per_case", "M11 location recipients per case", "agents", "lower"),
     ("M12_robustness.recovery_s", "M12 recovery after hub crash", "s", "lower"),
+    ("M13_equity.cpr_central_s", "M13 time to CPR, central cells", "s", "lower"),
+    ("M13_equity.cpr_peripheral_s", "M13 time to CPR, peripheral cells", "s", "lower"),
     ("rules.violations", "Rule violations", "count", "lower"),
 ]
+# Contagens somadas sobre as seeds, para se ler cada IC sabendo de quantos doentes vem
+TOTALS = [
+    ("incidents.P1", "P1 incidents, total over seeds", "count", ""),
+    ("M6_survival_pct.n", "M6 patients, total over seeds", "count", ""),
+]
+# B1 e "sem orientação" não têm orientação: a diferença entre as duas é só a coordenação
+# (verificação, Contract Net e reputação), e "sem orientação" contra "ours" é só a orientação.
+COORDINATION = "naive_vs_no_guidance"
 FIGURE_METRICS = ["M1_verification_latency_s.median", "M2_verification.recall_P1_P2_reported",
                   "M2_verification.false_dispatches", "M3_time_to_cpr_s.median",
                   "M7_coverage_before_ems_pct.volunteer", "M10_volunteer_load.alerts_per_volunteer"]
@@ -59,7 +75,8 @@ SCENARIO_NAMES = {"c1": "C1 base urban", "c2": "C2 noise and false alarms", "c3"
                   "c4": "C4 degraded periphery", "c5": "C5 adversarial sources"}
 VARIANT_NAMES = {"ours": "Ours", "naive": "B1 naive broadcast", "alert_first": "AlertFirst",
                  "confirm_first": "ConfirmFirst", "no_reputation": "No reputation", "no_guidance": "No guidance",
-                 "k1": "k = 1", "k3": "k = 3"}
+                 "k1": "k = 1", "k3": "k = 3", "loss10": "10 % message loss", "loss20": "20 % message loss",
+                 COORDINATION: "B1 − No guidance"}
 # Valor t de Student para um IC a 95 %, por graus de liberdade (n - 1)
 T_95 = {1: 12.71, 2: 4.30, 3: 3.18, 4: 2.78, 5: 2.57, 6: 2.45, 7: 2.36, 8: 2.31, 9: 2.26, 10: 2.23,
         11: 2.20, 12: 2.18, 13: 2.16, 14: 2.14, 15: 2.13, 16: 2.12, 17: 2.11, 18: 2.10, 19: 2.09}
@@ -80,15 +97,20 @@ def variant_order(variants) -> list[str]:
 
 
 def aggregate(runs: pd.DataFrame) -> pd.DataFrame:
-    """Média, IC 95 % e n de cada métrica, por cenário e variante."""
+    """Média, IC 95 % e n de cada métrica, por cenário e variante; as TOTALS são somadas, sem IC."""
     rows = []
     for (scenario, variant), group in runs.groupby(["scenario", "variant"]):
-        for column, label, unit, better in METRICS:
+        for metric in METRICS + TOTALS:
+            column, label, unit, better = metric
             if column not in group:
                 continue
             values = pd.to_numeric(group[column], errors="coerce")
+            if metric in TOTALS:
+                mean, ci = values.sum(), float("nan")
+            else:
+                mean, ci = values.mean(), ci95(values)
             rows.append({"scenario": scenario, "variant": variant, "metric": label, "unit": unit, "better": better,
-                         "mean": values.mean(), "ci95": ci95(values), "n": int(values.notna().sum())})
+                         "mean": mean, "ci95": ci, "n": int(values.notna().sum())})
     return pd.DataFrame(rows)
 
 
@@ -119,6 +141,12 @@ def paired(runs: pd.DataFrame) -> pd.DataFrame:
             for metric in METRICS:
                 if metric[0] in part:
                     rows.append(paired_row(scenario, variant, metric, ours, other))
+        no_guidance = part[part["variant"] == "no_guidance"]
+        naive = part[part["variant"] == "naive"]
+        if not no_guidance.empty and not naive.empty:
+            for metric in METRICS:
+                if metric[0] in part:
+                    rows.append(paired_row(scenario, COORDINATION, metric, no_guidance, naive))
     return pd.DataFrame(rows)
 
 
@@ -143,7 +171,7 @@ def write_summary_md(summary: pd.DataFrame, n_runs: int, commit: str, out: Path)
         lines += [f"## {SCENARIO_NAMES.get(scenario, scenario)}", "",
                   "| Metric | " + " | ".join(VARIANT_NAMES.get(v, v) for v in variants) + " |",
                   "|---|" + "---|" * len(variants)]
-        for _, label, unit, better in METRICS:
+        for _, label, unit, better in METRICS + TOTALS:
             cells = []
             for v in variants:
                 row = part[(part["variant"] == v) & (part["metric"] == label)]
@@ -151,8 +179,9 @@ def write_summary_md(summary: pd.DataFrame, n_runs: int, commit: str, out: Path)
                     cells.append("—")
                 else:
                     cells.append(format_cell(row["mean"].iloc[0], row["ci95"].iloc[0], row["n"].iloc[0]))
+            note = f"{unit}, {better} is better" if better else unit
             if any(c != "—" for c in cells):
-                lines.append(f"| {label} ({unit}, {better} is better) | " + " | ".join(cells) + " |")
+                lines.append(f"| {label} ({note}) | " + " | ".join(cells) + " |")
         lines.append("")
     (out / "summary.md").write_text("\n".join(lines), encoding="utf-8")
 
@@ -162,12 +191,15 @@ def write_paired_md(table: pd.DataFrame, commit: str, out: Path) -> None:
     lines = ["# Paired comparisons", "",
              f"Commit `{commit}`. Each cell is the mean over seeds of (variant − ours) with a 95 % confidence "
              "interval, and in how many seeds ours was better. An interval that excludes 0 is a difference "
-             "beyond the seed-to-seed variation.", ""]
+             "beyond the seed-to-seed variation. The column \"B1 − No guidance\" compares two variants without "
+             "bystander guidance, so it isolates verification, Contract Net and reputation; there \"ours\" is "
+             "\"No guidance\".", ""]
     for scenario in sorted(table["scenario"].unique()):
         part = table[table["scenario"] == scenario]
         variants = variant_order(part["variant"].unique())
+        headers = [VARIANT_NAMES[v] if v == COORDINATION else f"{VARIANT_NAMES.get(v, v)} − Ours" for v in variants]
         lines += [f"## {SCENARIO_NAMES.get(scenario, scenario)}", "",
-                  "| Metric | " + " | ".join(f"{VARIANT_NAMES.get(v, v)} − Ours" for v in variants) + " |",
+                  "| Metric | " + " | ".join(headers) + " |",
                   "|---|" + "---|" * len(variants)]
         for _, label, unit, better in METRICS:
             cells = []

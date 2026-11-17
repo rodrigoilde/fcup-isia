@@ -23,8 +23,8 @@ from cemr.sim.patient import PatientState, estimated_survival, larsen_survival
 CFG = load_config("c1")
 
 
-def make_trace(scenario: str, seed: int = 1) -> dict:
-    cfg = load_config(scenario)
+def make_trace(scenario: str, seed: int = 1, overrides: dict | None = None) -> dict:
+    cfg = load_config(scenario, overrides)
     layout = generate_layout(cfg, random.Random(f"{seed}/layout"))
     grid = CityGrid(cfg["city"]["size_m"], cfg["city"]["grid_spacing_m"], layout.hub_positions)
     return generate_trace(cfg, layout, grid, random.Random(f"{seed}/trace"), cfg["run"]["duration_s"])
@@ -57,6 +57,13 @@ def test_c5_pranksters_are_two_citizens_who_always_report():
     assert len({s["bystander"] for s in pranks}) == 2
     assert len(pranks) > 2                                     # reincidentes: mais do que um relato cada
     assert all(s["will_report"] for s in pranks)
+
+
+def test_only_drifting_devices_have_unanswered_false_positives():
+    stimuli = make_trace("c2", overrides={"sensors": {"drift_p_no_response": 1.0}})["stimuli"]
+    false_positives = [s for s in stimuli if s["kind"] == "sensor_event" and s["incident"] is None]
+    assert all(s["wearer_response_s"] is None for s in false_positives if s["drift"])
+    assert any(s["wearer_response_s"] is not None for s in false_positives if not s["drift"])
 
 
 def test_scenarios_without_pranksters_have_none():
