@@ -48,6 +48,7 @@ quality_true = [0.7, 1.0]         # signal quality of a real collapse; scales th
 quality_false = [0.5, 1.0]        # signal quality of a false positive
 p_immobile_on_fp = 0.5            # false positives that also show immobility
 drift_p_immobile = 0.8
+drift_p_no_response = 0.0         # F3: false positives of a drifting device that the wearer never answers (device left on a table, wearer asleep)
 event_confidence = { collapse_cardiac = 0.95, fall_immobile = 0.8, fall = 0.5 }   # x signal quality
 
 [wearer]

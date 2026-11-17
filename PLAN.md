@@ -185,6 +185,17 @@ O relatório e os slides são partilhados, e cada pessoa escreve a parte que imp
 
 ## Estado
 
+> Registo histórico, escrito durante os sprints; não é o estado atual. A divisão por três pessoas e as
+> datas acima eram o plano inicial (o grupo tem dois estudantes). O estado atual está no `README.md`.
+> Depois da auditoria de 16 Nov entraram:
+> - a nova pergunta da triagem que desmente o relato;
+> - os falsos positivos sem resposta no C2;
+> - o M9 contado desde a declaração;
+> - as variantes de perda para o M12;
+> - a comparação "B1 − No guidance".
+>
+> A matriz final corre sobre o commit com a tag `matrix-final`.
+
 ### Sprint 0 — concluído (22 Out)
 
 - **Ambiente:** venv Python 3.11 + `spade==4.1.4`. Foi preciso acrescentar `greenlet`, que o pyjabber usa e o `pip install spade` não instala.

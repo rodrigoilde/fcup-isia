@@ -2,7 +2,8 @@
 
 from cemr.behaviours.privacy import coarse_area
 from cemr.behaviours.verification import (Belief, Candidate, SourceView, case_priority, close_areas, evidence_weight,
-                                          notice_decision, os4_branch, same_incident, should_declare)
+                                          notice_decision, os4_branch, same_incident, should_declare,
+                                          triage_contradicts_report)
 from cemr.config import load_config
 from cemr.protocol.ontology import Priority
 
@@ -91,6 +92,25 @@ def test_triage_replaces_the_witness_own_provisional_priority():
     assert case_priority([witness]) == Priority.P1                              # relato sozinho: pior plausível
     witness.triage = {"responsive": "no", "breathing_normally": "yes"}
     assert case_priority([witness]) == Priority.P2
+
+
+# --- triagem que desmente o relato (F4) ----------------------------------------------------------------
+def test_witness_who_reported_a_collapse_and_says_responds_contradicts_the_report():
+    witness = SourceView("wit1", "witness", 0.5, positive=True, event_type="witness_collapse",
+                         triage={"responsive": "yes", "breathing_normally": "yes"})
+    assert triage_contradicts_report(witness)
+
+
+def test_coherent_p1_triage_does_not_contradict_the_report():
+    witness = SourceView("wit1", "witness", 0.5, positive=True, event_type="witness_collapse",
+                         triage={"responsive": "no", "breathing_normally": "no"})
+    assert not triage_contradicts_report(witness)
+
+
+def test_a_sensor_never_contradicts_a_report():
+    sensor = SourceView("dev1", "sensor", 0.5, positive=True, event_type="fall",
+                        triage={"responsive": "yes", "breathing_normally": "yes"})
+    assert not triage_contradicts_report(sensor)
 
 
 # --- fusão de alertas por área (T1.1) ------------------------------------------------------------------

@@ -76,7 +76,7 @@ sequenceDiagram
     W-->>H: P03 inform CorroborationReply(confirm)
     H->>W: P04 query-if TriageQuestion × 4 (BLS order)
     W-->>H: P04 inform TriageAnswer(responsive=no), (breathing_normally=no)
-    D->>H: P01 inform AlertReport(prompt=no_response)<br/>or P02 cancel AlertCancel(wearer_ok)
+    D->>H: P01 inform AlertReport(prompt=no_response)<br/>or P02 inform AlertCancel(wearer_ok)
     Note over H: _FuseEvidence · OS4 · _ClassifyPriority<br/>P06 DeclareIncident (local hand-over, audited)
 ```
 
@@ -202,9 +202,11 @@ The hub's receipt: the alert joined candidate `candidate_id`.
 
 ### P02 · CancelAlert
 
-**`AlertCancel`** · `cancel`
+**`AlertCancel`** · `inform`
 
-The wearer answered "I'm fine", or the witness retracts the report.
+The wearer answered "I'm fine", or the witness retracts the report. It travels as `inform`, not `cancel`:
+in FIPA, `cancel` withdraws an action the sender had requested, while here the source informs the hub that
+its alert was false.
 
 | Field | Type | Description |
 |---|---|---|

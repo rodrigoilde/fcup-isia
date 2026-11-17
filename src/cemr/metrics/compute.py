@@ -12,6 +12,7 @@ import statistics
 from collections import Counter, defaultdict
 
 from ..protocol.ontology import ON_SCENE_STATUSES
+from ..sim.directory import Directory
 from ..sim.patient import PatientState, estimated_survival
 
 BACKGROUND_PROTOCOLS = ("P23", "P25", "P27")       # gossip, registos e heartbeats: não dependem dos casos
@@ -161,13 +162,25 @@ def reported_incidents(incidents: dict, by_kind: dict, window_s: float) -> set[s
     return reported
 
 
+def false_dispatches_with_witness(false_dispatches: list, declared: dict) -> int:
+    """Quantos falsos despachos tiveram pelo menos uma testemunha entre as fontes; os outros são só de sensores."""
+    count = 0
+    for case in false_dispatches:
+        sources = declared[case].get("sources", [])
+        if any(Directory.kind_of(s) == "bystander" for s in sources):
+            count += 1
+    return count
+
+
 def verification_metrics(incidents: dict, declared: dict, false_dispatches: list, reported: set) -> dict:
     """M2: precisão e recall da verificação.
 
     Há três recalls. O de todos os P1/P2 inclui os que só uma chamada para o 112 apanharia (A7); o dos
     detetáveis exclui-os; o dos reportados exclui também os que nenhuma fonte chegou a reportar (a
     testemunha decidiu não o fazer, ou o sensor falhou), e por isso mede só a fusão e a verificação.
+    Os falsos despachos separam-se pela fonte, para se ver o que a reputação pode travar em C2 e C5.
     """
+    with_witness = false_dispatches_with_witness(false_dispatches, declared)
     urgent_all = [i for i in incidents.values() if i["priority"] in ("P1", "P2")]
     urgent = [i for i in urgent_all if i["detectable"]]
     urgent_reported = [i for name, i in incidents.items() if i in urgent_all and name in reported]
@@ -176,6 +189,8 @@ def verification_metrics(incidents: dict, declared: dict, false_dispatches: list
             "recall_P1_P2_detectable": pct(sum(1 for i in urgent if i["cases"]), len(urgent)),
             "recall_P1_P2_reported": pct(sum(1 for i in urgent_reported if i["cases"]), len(urgent_reported)),
             "false_dispatches": len(false_dispatches),
+            "false_dispatches_witness": with_witness,
+            "false_dispatches_sensor_only": len(false_dispatches) - with_witness,
             "false_dispatches_per_100_cases": pct(len(false_dispatches), len(declared))}
 
 
@@ -193,18 +208,29 @@ def message_metrics(by_kind: dict) -> dict:
 
 
 def oracle_metrics(incidents: dict, p1_names: set, oracle: dict | None) -> tuple[dict, dict]:
-    """M9 (distância ao oráculo B0 no primeiro voluntário) e as medianas do próprio B0."""
+    """M9 (distância ao oráculo B0 no primeiro voluntário) e as medianas do próprio B0.
+
+    `median` conta desde o colapso e inclui a deteção e a verificação. `dispatch_median` conta desde a
+    declaração e mede só o despacho: chamada, propostas, adjudicação e viagem. O B0 é um limite
+    otimista, porque ignora recusas, voluntários ocupados e as posições depois de cada missão.
+    """
     if not oracle:
-        return {"median": None, "n": 0}, {"first_responder_s": None, "aed_s": None, "ems_s": None}
+        return ({"median": None, "dispatch_median": None, "n": 0},
+                {"first_responder_s": None, "aed_s": None, "ems_s": None})
     gaps = []
+    dispatch_gaps = []
     for name in p1_names:
+        incident = incidents[name]
         best = oracle.get(name, {}).get("first_responder_s")
-        if "t_volunteer" in incidents[name] and best is not None:
-            gaps.append(incidents[name]["t_volunteer"] - incidents[name]["t_collapse"] - best)
+        if "t_volunteer" not in incident or best is None:
+            continue
+        gaps.append(incident["t_volunteer"] - incident["t_collapse"] - best)
+        if "t_declared" in incident:
+            dispatch_gaps.append(incident["t_volunteer"] - incident["t_declared"] - best)
     b0 = {}
     for key in ("first_responder_s", "aed_s", "ems_s"):
         b0[key] = median([oracle[n][key] for n in p1_names if oracle.get(n) and oracle[n][key] is not None])
-    return {"median": median(gaps), "n": len(gaps)}, b0
+    return {"median": median(gaps), "dispatch_median": median(dispatch_gaps), "n": len(gaps)}, b0
 
 
 def volunteer_load(by_kind: dict, located: dict, case_incident: dict) -> dict:

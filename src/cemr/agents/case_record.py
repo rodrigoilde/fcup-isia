@@ -6,6 +6,7 @@ Desenho em docs/03-detailed-design.md §2.4.
 
 from dataclasses import asdict, dataclass, field
 
+from ..behaviours.tracking import AwardInfo
 from ..behaviours.verification import Belief, SourceView
 from ..protocol.messages_hubs import CaseSnapshot
 from ..protocol.ontology import CaseState, Priority, SourceKind
@@ -13,36 +14,6 @@ from ..sim.directory import Directory
 
 VERIFY, DISPATCH, TRACK, CLOSE, DISCARD = "VERIFY", "DISPATCH", "TRACK", "CLOSE", "DISCARD"
 TRANSITIONS = ((VERIFY, DISPATCH), (VERIFY, DISCARD), (DISPATCH, TRACK), (DISPATCH, CLOSE), (TRACK, CLOSE))
-
-
-@dataclass
-class AwardInfo:
-    """Uma adjudicação a um voluntário.
-
-    Attributes:
-        task (str): GO_TO_PATIENT ou FETCH_AED.
-        eta_s (float): ETA da proposta.
-        aed_id (int | None): DAE a ir buscar.
-        status (str): awarded, committed, failed ou released.
-        arrive_by (float): ETA + δ; depois disto a adjudicação está em risco (OL6).
-        on_scene_t (float | None): Quando chegou ao local.
-        late (bool): Se passou de `arrive_by` sem chegar.
-        aed_delivered (bool): Se entregou o DAE.
-    """
-
-    task: str
-    eta_s: float
-    aed_id: int | None = None
-    status: str = "awarded"
-    arrive_by: float = 0.0
-    on_scene_t: float | None = None
-    late: bool = False
-    aed_delivered: bool = False
-
-    @property
-    def active(self) -> bool:
-        """Se a adjudicação ainda conta (não falhou nem foi dispensada)."""
-        return self.status in ("awarded", "committed")
 
 
 @dataclass

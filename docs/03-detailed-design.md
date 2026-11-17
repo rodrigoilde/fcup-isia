@@ -285,11 +285,16 @@ organisational rules.
 ## 4. Decision logic
 
 All decision logic lives in pure modules under `src/cemr/behaviours/` and is unit-tested without SPADE
-(`tests/test_verification.py`, `test_allocation.py`, `test_privacy_reputation.py`, `test_guidance.py`).
+(`tests/test_verification.py`, `test_allocation.py`, `test_tracking.py`, `test_privacy_reputation.py`,
+`test_guidance.py`). The agents' FSM states call these functions and only send messages and log events.
 
 ### 4.1 Evidence fusion and priority (D5, `verification.py`)
 
 `L = logit(prior) + Σ w(trust) · confidence · ln LR(evidence)`, with `w = min(2, trust / 0.5)`.
+
+With `w = confidence = 1` this is the Bayesian update of naive Bayes (evidence independent given the
+patient's state). Weighting `ln LR` by trust and confidence is a heuristic, a tempered likelihood that gives
+less force to unreliable sources; it is not an exact Bayesian update.
 
 The table shows the calibration: each target, the sum of terms, and the resulting probability.
 
@@ -316,6 +321,15 @@ The case takes the **most severe** of these.
   observation errors are independent, the hub asks those two questions once more (F4). A second
   incoherent answer is ignored. Before this, a single witness's incoherent triage left OS4 unmet and
   the P1 was discarded when its window expired.
+- **Triage that contradicts the report.** A witness who reported (or confirmed) a collapse and then says
+  the person responds misread the scene one of the two times. The hub asks the two key questions once
+  more (`triage_contradicts_report`, F4); a second "responds" is accepted and the case stays at P3. Before
+  this, the first answer was accepted: the case dropped to P3, a lone witness's report could never reach
+  τ(P3) = 0.85, and the candidate was discarded. In a C3 run (seed 5) this lost a shockable P1 whose
+  witness answered "responds, breathes"; it explained most of the recall gap to B1 in C3.
+- **Repeated alerts from one source.** A source adds its alert evidence once per candidate, however many
+  alerts it sends (D5). Until the audit of 16 Nov each new alert id added it again: a drifting device that
+  fired twice within 12 s raised the belief from 0.26 to 0.39 with no new source.
 - **Retraction (P07).** A declared case whose belief falls below 0.3 after a human cancellation (the
   wearer's "I'm fine", or a witness retracting) is retracted. Volunteers are released, and so is the
   ambulance, because a human confirmed the false alarm (OS6).
@@ -343,7 +357,14 @@ The case takes the **most severe** of these.
    - no reputation.
 
 ETAs are estimated to the **centre of the case's cell** because the precise location is only disclosed
-with the award. Metric M9 (gap to the oracle B0) measures what this privacy costs.
+with the award.
+
+**Metric M9 (gap to the oracle B0)** has two parts. Measured from the collapse it also contains detection
+and verification. Measured from the declaration it contains only dispatch: the call, the proposal
+deadline, refusals (`p_accept`), the award and the trip. B0 is an optimistic bound: it ignores refusals,
+volunteers already busy and positions after earlier missions, so in the surge (C3) it may send one
+volunteer to several patients at once. M9 therefore bounds the cost of privacy (ETA to the cell centre)
+and of the greedy award from above; it does not isolate them.
 
 ### 4.3 Disclosure (D7, `privacy.py`)
 
@@ -404,10 +425,10 @@ skipped. The guide can only choose step ids from this table.
 | F1 sensor false positive | wearer answers; corroboration | P02, OS4, reputation | `citizen_device`, `verification`, P21 |
 | F2 false negative, person alone | — | third OS4 branch (automatic alert + silent wearer) | `verification.os4_branch` |
 | F3 sensor drift | trust of the source falls | weight by trust; decay | `reputation`, C2 |
-| F4 wrong or misread human report | incoherent triage; EMS finds nobody | re-ask once, then ignore; reputation; prior trust for new witnesses | `case_verify.recheck_triage`, P21, C2 |
+| F4 wrong or misread human report | incoherent triage, or triage that contradicts the witness's report; EMS finds nobody | re-ask the key questions once; reputation; prior trust for new witnesses | `case_verify.recheck_triage`, `verification.triage_contradicts_report`, P21, C2 |
 | F5 lost or late messages | deadlines | triage re-ask (12 s), P24 re-request (also during TRACK), P14 resend, idempotent ids, mission time cap, double closure | `case_verify`, `case_track`, `volunteer_mission` |
 | F6 hub failure | heartbeats stop | successor takeover (P27/P28); sources fall back to the successor | `hub_failover`, `base.raise_alert`, C4 |
-| F7 volunteer no-show or late | ETA + δ, WITHDRAWN | re-recruitment (OL6); release of surplus (OL8) | `case_track.check_progress` |
+| F7 volunteer no-show or late | ETA + δ, WITHDRAWN | re-recruitment (OL6); release of surplus (OL8) | `case_track.check_progress`, `tracking` |
 | F8 AED missing or locked | `AED_MISSING`, registry state | AED excluded; new FETCH call | `case_awards`, `aed_custody` |
 | F9 simultaneous incidents | — | one commitment per responder (OS2), one reservation per AED (OS3) | C3 |
 | F10 ambulance late or unavailable | no proposals | retry with backoff (30 → 120 s); guided CPR continues | `case_dispatch.award_ambulance` |
@@ -427,7 +448,7 @@ Parameters are in `scenarios/defaults.toml`, with the analysis assumption they i
 | Witness (A5) | Reports with p = 0.8 after 20–60 s, standing 5–15 m from the patient. Answers each triage question with p = 0.95 and misreads the patient's state with p = 0.1 (0.2 in C2). In C2 some citizens also "see" a collapse that is not one (a sleeping person), and answer accordingly. In C5 two citizens (pranksters) report such scenes about 4 times per hour each, always. |
 | OnSceneHelper (A5) | Starts each instruction after 3–8 s. Gives up with p = 0.03 per instruction, plus 0.03 per compression cycle after the second (fatigue). Says it is tired from the third cycle. |
 | Volunteer (A6) | Accepts a call with p = 0.7 after 3–8 s. An awardee fails to show with p = 0.05 (half withdraw on the way, half go silent). Real travel takes 0–30 % longer than estimated. |
-| Sensors (A2) | Detect a real collapse with p = 0.9 after 10–20 s; 0.02 false positives per device per hour. In C2 there are ×5 false positives and 4 drifting devices with 1 per hour. |
+| Sensors (A2) | Detect a real collapse with p = 0.9 after 10–20 s; 0.02 false positives per device per hour. In C2 there are ×5 false positives and 4 drifting devices with 3 per hour, half of which the wearer never answers (device left on a table), so they pass OS4 and reach dispatch; these repeated offenders are what reputation can learn from. |
 | EMS | 240 s of call handling and activation, then 30 km/h. In C4 the stations are 1.5 km outside the area and activation takes 300 s. |
 
 ## 6. Environment as implemented
@@ -470,13 +491,15 @@ methods that follow the environment–role matrix (analysis §5.4).
 | `W_max` P1 / P2 | 30 s / 60 s | 45 s / 75 s | The wearer prompt lasts 30 s; the third OS4 branch could never complete in 30 s |
 | Prior P(real \| candidate) | — | 0.15 | Calibrated so the targets in §4.1 hold |
 | Likelihood ratios | — | `scenarios/defaults.toml` | The analysis fixed the method, not the numbers |
-| Priority under conflicting evidence | not specified | most severe active source; incoherent triage ignored | Safety (RNF5); see §4.1 |
+| Priority under conflicting evidence | not specified | most severe active source; incoherent triage, or triage that contradicts the witness's own report, re-asked once | Safety (RNF5); see §4.1 |
 | Retraction threshold | not specified | belief < 0.3 after a human cancellation | P07 needs a trigger |
 | Merging alerts (`_MergeCandidates`) | same candidate | same cell, within 90 s and areas at most 100 m apart | Merging by cell fused different patients in C3 (02 §D7) |
 | N_need(p) | named, no value | P1: 2, P2: 1 | OL8 |
 | Retries | "deadlines and repetition" | resend after 20 s, at most twice; triage deadline 12 s | F5; witnesses answer in 3–10 s, so a retry fits inside W_max(P1) |
 | EMS response | — | 240 s + 30 km/h | ~6–9 min in C1. An assumption: we found no source for urban Portuguese response times, which is a stated limitation |
 | Enumerated values | Portuguese | English | They are code identifiers; the mapping is in 04 §5 |
+| Drifting sensors in C2 | "some sensors with drift" | 3 false positives per hour, half never answered by the wearer (`drift_p_no_response = 0.5`) | With 1 per hour, all answered, the wearer's "I'm fine" filtered every drifting false positive. With 1 per hour and half unanswered, the same device repeated only 0.2 times per run (seeds 1–10), too rarely for reputation to act within 60 min |
+| Robustness M12 | degradation of M3–M5 with x % message loss | C1 with 10 % and 20 % loss on phone links, plus recovery time after the C4 hub crash | The recovery time alone is set by the lease (15 s + 5 s) and does not measure degradation |
 
 Time metrics are computed over **detectable** incidents (a wearable or a witness was present).
 An incident with neither can only be caught by a 112 call, which is not simulated (A7). It still
@@ -486,7 +509,7 @@ counts against recall.
 
 | Check | What it covers |
 |---|---|
-| Unit tests (`tests/test_*.py`, 71 tests, `pytest -m "not slow"`) | Fusion and OS4; the priority rule; alert merging by area and the P26 decision; Contract Net; disclosure; AED custody; reputation with gossip and decay; guidance steps; Larsen; network FIFO; trace reproducibility; the C5 pranksters; payload round trips and the FIPA envelope; the metrics; the rule checker catching injected violations |
+| Unit tests (`tests/test_*.py`, 86 tests, `pytest -m "not slow"`) | Fusion and OS4; the priority rule; triage that contradicts the report; alert merging by area and the P26 decision; Contract Net; late awards, uncovered tasks and surplus release (OL6, OL8); unanswered drifting false positives; disclosure; AED custody; reputation with gossip and decay; guidance steps; Larsen; network FIFO; trace reproducibility; the C5 pranksters; payload round trips and the FIPA envelope; the metrics; the rule checker catching injected violations |
 | End-to-end tests (`tests/test_end_to_end.py`) | C1: the OL1 sequence, OL2, OL7, OS5, zero rule violations, valid run. C4: the takeover of a crashed hub's case within 40 s, P28 reaching participants, the crashed hub silent, no orphaned cases |
 | Rule checker (`python -m cemr.metrics.check runs/<run>`) | Re-derives OS1–OS6, OS8, OS9, OS11–OS13, OL1–OL3, OL5–OL7, OL9 and DUP (no duplicate cases) from the audit log after every run. It runs inside `run.py` and is reported in `summary.json` |
 | Validity checks (`run.py`) | Discards runs in which the machine slept or the event loop stalled |
@@ -508,7 +531,7 @@ stops short of a textbook mechanism.
 | `CitizenDeviceAgent` | Model-based reflex | Keeps a small state (`recent_alerts`) and acts by fixed rules: detection thresholds and the alert policy |
 | `VolunteerAgent` | Utility-based | The app picks the AED and computes the ETA that minimise arrival time; accepting a call is a stochastic human model (`p_accept`) |
 | `EMSAgent` | Utility-based | Bids its ETA and serves the case it is awarded |
-| `AEDHubAgent` | Hybrid, layered (Wooldridge, 2009) | Reactive layer: the router, AED custody and heartbeats answer at once. Deliberative layer: one FSM per case, with Bayesian fusion of evidence and a Contract Net |
+| `AEDHubAgent` | Hybrid, layered (Wooldridge, 2009) | Reactive layer: the router, AED custody and heartbeats answer at once. Deliberative layer: one FSM per case, with log-odds fusion of evidence and a Contract Net |
 | `BystanderAgent` | Human model plus the guidance app | Layered behaviour: fatigue and giving up override the current instruction, much as a higher layer suppresses a lower one in a subsumption architecture |
 
 The environment is partially observable (the hub never sees a patient), stochastic, dynamic,
@@ -543,8 +566,9 @@ every decision to be an event, not a step of a reasoning cycle.
   call to the same participants.
 - **Winner determination.** `assign` is greedy: the FETCH_AED task first (the best bid whose AED can be
   reserved), then the GO_TO_PATIENT tasks, one task per volunteer, at most N_max. A volunteer and an
-  AED form a bundle, so the optimal allocation is a combinatorial problem. Metric M9, the gap to the
-  oracle B0, measures what the greedy choice and the privacy-preserving ETA (to the cell centre) cost.
+  AED form a bundle, so the optimal allocation is a combinatorial problem. Metric M9 from the
+  declaration bounds from above what the greedy choice and the privacy-preserving ETA (to the cell
+  centre) cost; it also contains refusals and the proposal deadline (§4.2).
 - **Ambulance (P10).** A first-price rule on ETA alone, again without payments.
 
 ### 9.3 Aggregating priorities (social choice)
@@ -570,7 +594,12 @@ Example: three sources support P3 and one supports P1.
 - **Why.** Safety (RNF5): treating a P1 as a P3 is far more costly than the opposite. An earlier
   version let a witness's triage decide, and a 10 % observation error turned a P1 detected by a cardiac
   sensor into a P3 that was never dispatched (§4.1).
-- **One exception.** A witness's triage may lower its own report, but never another source's.
+- **One exception.** A witness's triage may lower its own report, but never another source's, and only
+  after the hub asked the key questions a second time (§4.1).
+- **What the comparison is worth.** The sources give evidence about one patient, not preferences over
+  outcomes, so this is not a social choice problem in the strict sense. The maximum rule is a decision
+  under asymmetric costs; the comparison with plurality, Borda and Condorcet shows what a majority rule
+  would have done.
 
 ## References
 

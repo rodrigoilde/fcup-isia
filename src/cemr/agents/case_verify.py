@@ -9,7 +9,7 @@ from dataclasses import asdict
 from typing import TYPE_CHECKING
 
 from ..behaviours.verification import (KEY_QUESTIONS, case_priority, close_areas, os4_branch, should_declare,
-                                       triage_incoherent)
+                                       triage_contradicts_report, triage_incoherent)
 from ..protocol.messages_detection import (AlertAck, AlertReport, CancelAck, CorroborationQuery, GuidanceActivation,
                                            TriageQuestion)
 from ..protocol.messages_hubs import OutcomeLabels
@@ -44,10 +44,11 @@ async def on_alert(fsm: "CaseFSM", origin: str, report: AlertReport) -> None:
         case.alerts[report.alert_id] = origin
         fsm.hub.claim(report.alert_id, fsm)
         await fsm.hub.send_to(origin, AlertAck(report.alert_id, case.case_id), thread=report.alert_id)
-        src.positive = True
         src.event_type = report.event_type
-        kind = "witness_report" if src.kind == SourceKind.WITNESS else "sensor_alert"
-        fsm.add_evidence(src, kind, report.confidence)
+        if not src.positive:              # D5: uma fonte conta uma vez, mesmo que mande vários alertas
+            src.positive = True
+            kind = "witness_report" if src.kind == SourceKind.WITNESS else "sensor_alert"
+            fsm.add_evidence(src, kind, report.confidence)
         # Titular dos dados (P24): o dispositivo do próprio doente, se alertou, senão a primeira testemunha.
         if case.subject is None or (src.kind == SourceKind.SENSOR and Directory.kind_of(case.subject) != "device"):
             case.subject = origin
@@ -171,7 +172,11 @@ async def on_triage_answer(fsm: "CaseFSM", inc: Incoming) -> None:
         return
     src.triage_scored = True
     if triage_incoherent(src.triage):
-        await recheck_triage(fsm, src)
+        await recheck_triage(fsm, src, "triage_incoherent")
+        return
+    # Uma segunda resposta "responde" é aceite: a pessoa está consciente e o caso fica em P3.
+    if triage_contradicts_report(src) and src.name not in fsm.case.triage_rechecked:
+        await recheck_triage(fsm, src, "triage_contradicts_report")
         return
     if src.triage[TriageQuestionId.RESPONSIVE] == Answer.NO:
         breathing = src.triage[TriageQuestionId.BREATHING_NORMALLY]
@@ -179,12 +184,19 @@ async def on_triage_answer(fsm: "CaseFSM", inc: Incoming) -> None:
         await activate_guidance(fsm, inc.sender, src.triage)
 
 
-async def recheck_triage(fsm: "CaseFSM", src) -> None:
-    """F4: triagem incoerente. Os erros de observação são independentes, por isso repetem-se uma vez
-    as duas perguntas-chave; uma segunda resposta incoerente é ignorada."""
+async def recheck_triage(fsm: "CaseFSM", src, event: str) -> None:
+    """F4: repete uma vez as duas perguntas-chave de uma triagem incoerente ou que desmente o relato.
+
+    Os erros de observação são independentes, por isso uma segunda leitura costuma corrigir a
+    primeira. Uma segunda resposta incoerente é ignorada.
+
+    Args:
+        src (SourceView): A testemunha.
+        event (str): Evento registado, "triage_incoherent" ou "triage_contradicts_report".
+    """
     case = fsm.case
     if src.name in case.triage_rechecked:
-        fsm.log("triage_incoherent", source=src.name, action="ignored")
+        fsm.log(event, source=src.name, action="ignored")
         return
     case.triage_rechecked.add(src.name)
     for question in KEY_QUESTIONS:
@@ -192,7 +204,7 @@ async def recheck_triage(fsm: "CaseFSM", src) -> None:
     src.triage_scored = False
     case.triage_retries.pop(src.name, None)
     await send_triage(fsm, src.name, KEY_QUESTIONS)
-    fsm.log("triage_incoherent", source=src.name, action="re-ask")
+    fsm.log(event, source=src.name, action="re-ask")
 
 
 async def activate_guidance(fsm: "CaseFSM", witness: str, triage: dict) -> None:

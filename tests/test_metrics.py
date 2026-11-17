@@ -16,8 +16,9 @@ def collapse(incident: str, pos: list, witness: str | None = None, device: str |
               device=device, witness=witness)
 
 
-def declared(t: float, case: str, hub: str = "hub1") -> dict:
-    return ev(t, "case_declared", agent=hub, case=case, priority="P1", p=0.9, rule="reliable_human")
+def declared(t: float, case: str, hub: str = "hub1", sources: list | None = None) -> dict:
+    return ev(t, "case_declared", agent=hub, case=case, priority="P1", p=0.9, rule="reliable_human",
+              sources=sources or [])
 
 
 # --- regras organizacionais -------------------------------------------------------------------------------
@@ -108,3 +109,25 @@ def test_a_case_located_where_nobody_collapsed_is_a_false_dispatch():
               declared(60, "hub1-c1"),
               ev(61, "case_located", agent="hub1", case="hub1-c1", location=[2500, 400], by="wit7")]
     assert summarize(events, CFG)["M2_verification"]["false_dispatches"] == 1
+
+
+def test_false_dispatches_are_split_by_source_kind():
+    events = [collapse("I1", [1000, 1000], witness="wit1"),
+              declared(60, "hub1-c1", sources=["wit7"]),
+              declared(70, "hub1-c2", sources=["dev3"]),
+              ev(61, "case_located", agent="hub1", case="hub1-c1", location=[2500, 400], by="wit7"),
+              ev(71, "case_located", agent="hub1", case="hub1-c2", location=[400, 2500], by="dev3")]
+    m2 = summarize(events, CFG)["M2_verification"]
+    assert m2["false_dispatches_witness"] == 1
+    assert m2["false_dispatches_sensor_only"] == 1
+
+
+def test_m9_dispatch_gap_starts_at_the_declaration():
+    oracle = {"I1": {"first_responder_s": 100.0, "aed_s": 200.0, "ems_s": 400.0}}
+    events = [collapse("I1", [1000, 1000], witness="wit1"),
+              declared(60, "hub1-c1", sources=["wit1"]),
+              ev(61, "case_located", agent="hub1", case="hub1-c1", location=[1000, 1010], by="wit1"),
+              ev(300, "status", agent="hub1", case="hub1-c1", source="vol1", status="ON_SCENE")]
+    m9 = summarize(events, CFG, oracle)["M9_gap_to_oracle_s"]
+    assert m9["median"] == 200.0                                # desde o colapso: 300 - 0 - 100
+    assert m9["dispatch_median"] == 140.0                       # desde a declaração: 300 - 60 - 100

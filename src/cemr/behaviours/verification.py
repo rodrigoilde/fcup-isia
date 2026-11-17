@@ -4,9 +4,11 @@ O hub guarda o log-odds de "este candidato é um incidente real". Cada evidênci
 
     peso(confiança na fonte) * confiança local * ln(LR)
 
-em que LR é a razão de verosimilhança do tipo de evidência (`scenarios/defaults.toml`). É a
-atualização bayesiana em log-odds, com as evidências tratadas como independentes dado o estado
-do doente, como num modelo naive Bayes (Russell e Norvig, 2022, cap. 12).
+em que LR é a razão de verosimilhança do tipo de evidência (`scenarios/defaults.toml`). Com peso e
+confiança iguais a 1 é a atualização bayesiana em log-odds, com as evidências tratadas como
+independentes dado o estado do doente, como num modelo naive Bayes (Russell e Norvig, 2022, cap. 12).
+Multiplicar ln(LR) pelos pesos já não é Bayes exato: é uma heurística que dá menos força à
+evidência de fontes pouco fiáveis (uma verosimilhança "temperada").
 
 Desenho em docs/03-detailed-design.md §4.1.
 """
@@ -115,6 +117,16 @@ def triage_incoherent(triage: dict) -> bool:
     return responsive == Answer.YES and breathing == Answer.NO
 
 
+def triage_contradicts_report(source: SourceView) -> bool:
+    """Indica se a triagem de uma testemunha desmente o seu próprio relato de colapso (F4).
+
+    Quem relatou ou confirmou um colapso e depois diz que a pessoa responde leu mal a cena numa das
+    vezes. Aceitar a triagem à primeira baixava o caso para P3 e um P1 mal lido era descartado.
+    """
+    responsive = source.triage.get(TriageQuestionId.RESPONSIVE)
+    return source.kind == SourceKind.WITNESS and source.positive and responsive == Answer.YES
+
+
 def triage_priority(triage: dict) -> Priority | None:
     """Converte uma triagem coerente na prioridade operacional.
 
@@ -139,7 +151,8 @@ def source_priority(source: SourceView) -> Priority | None:
     """Prioridade que uma fonte suporta.
 
     A triagem coerente de uma testemunha substitui a prioridade provisória do seu próprio relato.
-    Nos outros casos vale a prioridade provisória do tipo de evento do alerta.
+    Uma triagem que desmente o relato só chega aqui depois de repetida uma vez
+    (`triage_contradicts_report`). Nos outros casos vale a prioridade provisória do tipo de evento.
     """
     if source.cancelled:
         return None

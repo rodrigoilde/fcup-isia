@@ -7,15 +7,14 @@ cujo DAE se consegue reservar; as GO_TO_PATIENT depois, de forma gulosa. Desenho
 docs/03-detailed-design.md §4.2.
 """
 
-import secrets
 from typing import TYPE_CHECKING
 
 from ..behaviours.contract_net import Offer, assign, offer_score
+from ..behaviours.tracking import AwardInfo, uncovered_tasks
 from ..protocol.messages_dispatch import Award, AwardRejection, CallForProposals
 from ..protocol.messages_response import AEDReservationCancel, AEDReservationRequest
 from ..protocol.ontology import Qualification, TaskType
 from ..sim.directory import Directory
-from .case_record import AwardInfo
 from .conversation import Incoming
 
 if TYPE_CHECKING:
@@ -70,7 +69,7 @@ async def on_proposal_refusal(fsm: "CaseFSM", inc: Incoming) -> None:
 async def reserve_aed(fsm: "CaseFSM", aed_id: int) -> bool:
     """Reserva um DAE (P11) e espera pela resposta do seu guardião; devolve True se ficou reservado."""
     case = fsm.case
-    token = secrets.token_hex(6)
+    token = f"{case.case_id}-aed{aed_id}"     # na simulação o token só tem de coincidir; não gasta aleatório
     case.reservation = {"aed_id": aed_id, "ref": None, "token": token}
     case.reservation_pending = True
     await fsm.send(Directory.hub(aed_id), AEDReservationRequest(
@@ -138,17 +137,8 @@ def offers(fsm: "CaseFSM", exclude: set) -> list[Offer]:
 
 
 def uncovered(fsm: "CaseFSM") -> dict:
-    """Tarefas ainda em falta: adjudicações que falharam, ou atrasadas sem chegar, não cobrem (OL6)."""
-    awards = fsm.case.awards.values()
-    aed_delivered = any(a.aed_delivered for a in awards)
-    missing = {}
-    for task, wanted in fsm.case.needs.items():
-        if task == TaskType.FETCH_AED and aed_delivered:
-            continue
-        covering = [a for a in awards if a.task == task and a.active and (a.on_scene_t is not None or not a.late)]
-        if wanted > len(covering):
-            missing[task] = wanted - len(covering)
-    return missing
+    """Tarefas ainda em falta neste caso (OL6, ver `tracking.uncovered_tasks`)."""
+    return uncovered_tasks(fsm.case.needs, fsm.case.awards)
 
 
 async def send_award(fsm: "CaseFSM", offer: Offer) -> None:
