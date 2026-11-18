@@ -24,7 +24,7 @@ Every message is a FIPA-ACL message carried by SPADE.
 | FIPA-ACL parameter | SPADE field | Value |
 |---|---|---|
 | `:sender` / `:receiver` | `sender` / `to` | JID `<pseudonym>@localhost` (each run has its own XMPP server). Pseudonyms such as `hub6`, `vol23`, `dev26` carry no civil identity (D7) |
-| performative | metadata `performative` | `inform`, `cfp`, `propose`, `accept-proposal`, `request`, `agree`, `refuse`, `query-ref`, `query-if`, `subscribe`, `cancel`, `failure`, … |
+| performative | metadata `performative` | `inform`, `cfp`, `propose`, `accept-proposal`, `request`, `agree`, `refuse`, `query-ref`, `query-if`, `subscribe`, `cancel`, `failure`, `not-understood`, … |
 | `:protocol` | metadata `protocol` | e.g. `P08-CallForResponders` |
 | `:ontology` | metadata `ontology` | `cemr-v1` (`src/cemr/protocol/ontology.py`) |
 | `:language` | metadata `language` | `json` |
@@ -44,6 +44,14 @@ Every message is a FIPA-ACL message carried by SPADE.
 
 Every send is written to the event log (`kind = "msg"`) with its size, delay and whether it was
 dropped (metric M8).
+
+**Invalid messages.** A message whose content cannot be decoded (invalid JSON, or a `type` that names no
+payload) is answered with the FIPA `not-understood` performative (`agents/base.py`,
+`not_understood_reply`). The reply goes to the sender on the same thread and with the same protocol, and
+its content is `{"reason": "<decoder error>"}`. The receiver also logs the error (`kind = "error"`). A
+`not-understood` that is received is only logged (`kind = "not_understood"`) and never answered, so two
+agents cannot keep exchanging them. The reply bypasses the network model and is not counted in M8: it is
+an error path, and no scenario produces invalid messages, so it does not change any metric.
 
 ## 2. Conversation threads
 

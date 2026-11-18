@@ -12,6 +12,7 @@ escreve o evento "msg" usado na métrica M8. Desenho em docs/03-detailed-design.
 
 import asyncio
 import itertools
+import json
 import traceback
 
 from spade.agent import Agent
@@ -20,7 +21,7 @@ from spade.message import Message
 from ..protocol.messages import decode, encode
 from ..protocol.messages_detection import AlertAck
 from ..protocol.messages_hubs import Deregistration, Registration
-from ..protocol.ontology import LANGUAGE, ONTOLOGY
+from ..protocol.ontology import LANGUAGE, ONTOLOGY, Performative
 from ..sim.context import SimContext
 from ..sim.directory import Directory
 from .conversation import NEVER, Conversation, Incoming, Router, SimPeriodic, Worker
@@ -37,6 +38,26 @@ def envelope(payload, performative: str, seq: int) -> dict:
     if reply_by is not None:
         metadata["reply-by"] = str(round(reply_by, 3))
     return metadata
+
+
+def not_understood_reply(msg: Message, reason: str) -> Message:
+    """Resposta FIPA not-understood a uma mensagem cujo conteúdo não se consegue descodificar.
+
+    A resposta vai para o remetente na mesma thread e com o mesmo protocolo (`make_reply` do SPADE
+    copia a metadata), e o conteúdo diz porque é que a mensagem não foi percebida
+    (docs/04-protocols-and-messages.md §1).
+
+    Args:
+        msg (Message): Mensagem recebida que não se descodificou.
+        reason (str): Motivo, por exemplo o erro do descodificador.
+
+    Returns:
+        Message: A resposta, pronta a enviar.
+    """
+    reply = msg.make_reply()
+    reply.set_metadata("performative", str(Performative.NOT_UNDERSTOOD))
+    reply.body = json.dumps({"reason": reason})
+    return reply
 
 
 class CEMRAgent(Agent):
@@ -173,11 +194,20 @@ class CEMRAgent(Agent):
                         msg.get_metadata("performative"))
 
     async def route(self, msg: Message) -> None:
-        """Encaminha uma mensagem: pedido de serviço, conversa aberta ou `on_message`."""
+        """Encaminha uma mensagem: pedido de serviço, conversa aberta ou `on_message`.
+
+        Uma mensagem que não se descodifica recebe a resposta FIPA not-understood. Um not-understood
+        recebido só fica registado: responder-lhe podia pôr dois agentes a trocá-los sem fim.
+        """
+        if msg.get_metadata("performative") == Performative.NOT_UNDERSTOOD:
+            self.log("not_understood", sender=Directory.name_of(msg.sender), thread=msg.thread, body=msg.body)
+            return
         try:
             inc = self.parse(msg)
-        except (ValueError, KeyError, TypeError):      # JSON inválido ou tipo de mensagem desconhecido
+        except (ValueError, KeyError, TypeError) as exc:   # JSON inválido ou tipo de mensagem desconhecido
             self.report_error("parse")
+            if not self.stopped:
+                await self.router.send(not_understood_reply(msg, repr(exc)))
             return
         if isinstance(inc.payload, AlertAck) and inc.payload.alert_id in self.acks:
             self.alert_hub.setdefault(inc.payload.alert_id, inc.sender)
