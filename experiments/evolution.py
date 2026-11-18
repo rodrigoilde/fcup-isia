@@ -20,13 +20,13 @@ CHANGES = [
     ("Alerts merged by a 100 m area instead of by cell", "c3",
      "M2_verification.recall_P1_P2_detectable", "M2 recall, detectable (%)", "6df23fb", "b473e26"),
     ("Triage that contradicts the report is asked again", "c3",
-     "M2_verification.recall_P1_P2_detectable", "M2 recall, detectable (%)", "b473e26", "HEAD"),
+     "M2_verification.recall_P1_P2_detectable", "M2 recall, detectable (%)", "b473e26", "fb57b6b"),
     ("Triage that contradicts the report is asked again", "c3",
-     "M2_verification.recall_P1_P2_reported", "M2 recall, reported (%)", "b473e26", "HEAD"),
+     "M2_verification.recall_P1_P2_reported", "M2 recall, reported (%)", "b473e26", "fb57b6b"),
     ("A source counts once per candidate", "c5",
-     "M2_verification.false_dispatches", "M2 false dispatches (per run)", "b473e26", "HEAD"),
+     "M2_verification.false_dispatches", "M2 false dispatches (per run)", "b473e26", "fb57b6b"),
     ("A source counts once per candidate", "c5",
-     "M2_verification.precision", "M2 precision (%)", "b473e26", "HEAD"),
+     "M2_verification.precision", "M2 precision (%)", "b473e26", "fb57b6b"),
 ]
 
 

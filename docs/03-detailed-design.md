@@ -529,6 +529,48 @@ The counts add up to the P1/P2 incidents that recall counts as missed. The diagn
 after the run, so it does not change the agents. `experiments/analyse.py` sums it over seeds in
 `results/misses.md`.
 
+### 7.1 Design changes driven by the experiments
+
+Three changes to the design came from reading the results of earlier matrices. Each is measured on the
+same seeds before and after, for the variant "ours" (`experiments/evolution.py`, `results/evolution.md`).
+The data come from the `results/runs.csv` kept in git at each step, and each row names the code commit
+that produced its runs. More than one change may lie between two commits, so a row shows the effect of
+everything in between, not of one change alone.
+
+| Change | Scenario, metric | Before | After | After − before | Seeds |
+|---|---|---|---|---|---|
+| Alerts merged by a 100 m area instead of by cell | C3, M2 recall, detectable (%) | 64.0 ± 22.2 at `6df23fb` | 77.5 ± 13.7 at `67a012b` | +13.5 ± 13.3 | 1–5 |
+| Triage that contradicts the report is asked again | C3, M2 recall, detectable (%) | 75.8 ± 8.2 at `67a012b` | 80.3 ± 10.8 at `de13290` | +4.5 ± 4.2 | 1–10 |
+| Triage that contradicts the report is asked again | C3, M2 recall, reported (%) | 90.9 ± 5.8 at `67a012b` | 95.7 ± 5.2 at `de13290` | +4.8 ± 4.4 | 1–10 |
+| A source counts once per candidate | C5, M2 false dispatches (per run) | 3.0 ± 0.7 at `67a012b` | 3.0 ± 0.7 at `de13290` | +0.0 ± 0.0 | 1–10 |
+| A source counts once per candidate | C5, M2 precision (%) | 26.6 ± 14.0 at `67a012b` | 28.3 ± 15.0 at `de13290` | +1.7 ± 3.8 | 1–10 |
+
+**Merging by area.** With merging by cell, two patients who collapsed in the same cell within the merge
+window ended in one case, and the second was never dispatched (02 §D7). Merging by a 100 m area raised the
+C3 recall by 13.5 points. Between `6df23fb` and `67a012b` the P26 answer also became symmetric and the
+code was simplified, so part of the difference may come from those changes. Three P1/P2 incidents are still
+fused with another patient (`other_incident` in `results/misses.md`).
+
+**Triage that contradicts the report.** In the `67a012b` matrix a witness who reported a collapse and then
+answered "responds" lowered the case to P3, whose threshold a lone witness cannot reach (§4.1). Asking the
+two key questions again raised both C3 recalls by about 4.5 points, with confidence intervals that exclude
+zero. The miss diagnosis (`misses.py`, run over the event logs of both matrices) shows where the gain comes
+from: over seeds 1–10, `discarded_as_p3` went from 3 to 0 and `discarded_window` from 1 to 0, while the
+other reasons did not change. The `67a012b` event logs are not in git (`runs/` is ignored), so this
+count can only be repeated on the machine that kept them.
+
+**One source counts once.** A drifting device that fired twice within 12 s raised the belief from 0.26 to
+0.39 with no new source (§4.1). In C5 the change had no measurable effect: every false dispatch there comes
+from a prankster witness (`false dispatches from sensors only` is 0 in `results/summary.md`), and a
+witness sends one report per incident, so there was nothing to count twice. The scenario where it matters
+is C2, with its drifting sensors, but C2 itself changed between the two matrices (more unanswered false
+positives, §7), so the two C2 results cannot be compared. The change stays because it is correct
+evidence fusion (independent sources, 02 §D5), not because the experiments show a gain.
+
+The rule and its effect come from the same pair of commits for the second and third changes, so the
+metrics alone cannot separate them. We measure each in the scenario where it can act: C3 for the triage
+and C5 for repeated sources.
+
 ## 8. How the design is checked
 
 | Check | What it covers |
