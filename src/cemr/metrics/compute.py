@@ -4,7 +4,8 @@ Os casos são associados aos incidentes da verdade de referência pela localiza�
 ao coordenador ("case_located"): um caso declarado localizado onde não há doente conta como falso
 despacho. As métricas de tempo (M1, M3-M7, M9, M13) usam os incidentes **detetáveis**, os que têm
 um dispositivo ou uma testemunha: os outros só seriam apanhados por uma chamada para o 112, que não
-é simulada (A7). Continuam a contar contra o recall.
+é simulada (A7). Continuam a contar contra o recall. O motivo de cada P1/P2 falhado ("M2_missed")
+é calculado em `misses`.
 """
 
 import math
@@ -14,6 +15,7 @@ from collections import Counter, defaultdict
 from ..protocol.ontology import ON_SCENE_STATUSES
 from ..sim.directory import Directory
 from ..sim.patient import PatientState, estimated_survival
+from .misses import incident_alerts, missed_summary
 
 BACKGROUND_PROTOCOLS = ("P23", "P25", "P27")       # gossip, registos e heartbeats: não dependem dos casos
 LOCATION_MESSAGES = ("Award", "AmbulanceAward", "HandoverSummary", "Disclosure")
@@ -149,19 +151,6 @@ def survival_values(group: list[dict], cfg: dict) -> list[float]:
 
 
 # --- métricas por grupo -----------------------------------------------------------------------------
-def reported_incidents(incidents: dict, by_kind: dict, window_s: float) -> set[str]:
-    """Incidentes cujo dispositivo ou testemunha enviou pelo menos um alerta (P01) logo depois do colapso."""
-    reported = set()
-    for m in by_kind["msg"]:
-        if m["msg_type"] != "AlertReport":
-            continue
-        for name, inc in incidents.items():
-            from_source = m["src"] in (inc["device"], inc["witness"])
-            if from_source and inc["t_collapse"] <= m["t"] <= inc["t_collapse"] + window_s:
-                reported.add(name)
-    return reported
-
-
 def false_dispatches_with_witness(false_dispatches: list, declared: dict) -> int:
     """Quantos falsos despachos tiveram pelo menos uma testemunha entre as fontes; os outros são só de sensores."""
     count = 0
@@ -317,7 +306,7 @@ def summarize(events: list[dict], cfg: dict, oracle: dict | None = None) -> dict
         oracle (dict | None): Tempos do oráculo B0 por incidente (`baselines.oracle_b0`).
 
     Returns:
-        dict: Contagens gerais e as métricas M1-M13, uma chave por métrica.
+        dict: Contagens gerais, as métricas M1-M13 (uma chave por métrica) e os P1/P2 falhados por motivo.
     """
     radius = cfg["metrics"]["match_radius_m"]
     incidents, case_incident = incident_table(events, radius)
@@ -328,7 +317,8 @@ def summarize(events: list[dict], cfg: dict, oracle: dict | None = None) -> dict
     urgent = [i for i in incidents.values() if i["priority"] in ("P1", "P2") and i["detectable"]]
     p1 = [i for i in urgent if i["priority"] == "P1"]
     p1_names = {name for name, i in incidents.items() if i["priority"] == "P1" and i["detectable"]}
-    reported = reported_incidents(incidents, by_kind, cfg["metrics"]["report_window_s"])
+    alerts = incident_alerts(events, incidents, cfg["metrics"]["report_window_s"])
+    reported = set(alerts)                               # incidentes cuja fonte enviou pelo menos um alerta
     survival = survival_values(p1, cfg)
     m9, b0 = oracle_metrics(incidents, p1_names, oracle)
     cpr_events = by_kind["cpr_started"]
@@ -338,6 +328,7 @@ def summarize(events: list[dict], cfg: dict, oracle: dict | None = None) -> dict
         "M1_verification_latency_s": {"median": median(since_collapse(urgent, "t_declared")),
                                       "p90": p90(since_collapse(urgent, "t_declared"))},
         "M2_verification": verification_metrics(incidents, declared, false_dispatches, reported),
+        "M2_missed": missed_summary(events, incidents, alerts),
         "M3_time_to_cpr_s": {"median": median(since_collapse(p1, "t_cpr_started")),
                              "by_bystander_pct": pct(by_bystander, len(cpr_events))},
         "M4_time_to_aed_s": {"median": median(since_collapse(p1, "t_aed_attached")),

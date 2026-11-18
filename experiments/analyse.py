@@ -8,6 +8,7 @@ Escreve na pasta de saída:
 - summary.csv e summary.md: média, intervalo de confiança a 95 % e n por cenário, variante e métrica;
 - paired.csv e paired.md: diferença emparelhada por seed entre cada variante e "ours" (média, IC 95 %
   e em quantas seeds "ours" foi melhor), que tira a variação entre seeds da comparação;
+- misses.md: os P1/P2 falhados por motivo, somados sobre as seeds (diagnóstico do recall da M2);
 - fig_<cenário>.png (médias) e fig_<cenário>_paired.png (diferenças emparelhadas).
 
 Só entram os runs válidos, e todos têm de vir do mesmo commit do código.
@@ -64,6 +65,8 @@ TOTALS = [
 # B1 e "sem orientação" não têm orientação: a diferença entre as duas é só a coordenação
 # (verificação, Contract Net e reputação), e "sem orientação" contra "ours" é só a orientação.
 COORDINATION = "naive_vs_no_guidance"
+# Colunas do runs.csv com os P1/P2 falhados por motivo (`cemr.metrics.misses`)
+MISSED = "M2_missed."
 FIGURE_METRICS = ["M1_verification_latency_s.median", "M2_verification.recall_P1_P2_reported",
                   "M2_verification.false_dispatches", "M3_time_to_cpr_s.median",
                   "M7_coverage_before_ems_pct.volunteer", "M10_volunteer_load.alerts_per_volunteer"]
@@ -217,6 +220,38 @@ def write_paired_md(table: pd.DataFrame, commit: str, out: Path) -> None:
     (out / "paired.md").write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_misses_md(runs: pd.DataFrame, commit: str, out: Path) -> None:
+    """misses.md: motivo de cada P1/P2 falhado, somado sobre as seeds (diagnóstico do recall da M2).
+
+    Só aparecem os motivos que aconteceram em pelo menos um run do cenário. Um runs.csv anterior a este
+    diagnóstico não tem as colunas, e nesse caso o ficheiro não é escrito.
+    """
+    reasons = [c for c in runs.columns if c.startswith(MISSED)]
+    if not reasons:
+        return
+    lines = ["# Missed P1/P2 incidents", "",
+             f"Commit `{commit}`. P1/P2 incidents without a declared case at the patient, summed over seeds, by "
+             "the furthest point their alerts reached (`src/cemr/metrics/misses.py`). The first column is the "
+             "number of P1/P2 incidents.", ""]
+    for scenario in sorted(runs["scenario"].unique()):
+        part = runs[runs["scenario"] == scenario]
+        totals = part.groupby("variant")[reasons].sum()
+        urgent = part.groupby("variant")[[c for c in ("incidents.P1", "incidents.P2") if c in part]].sum()
+        seen = [c for c in reasons if totals[c].sum() > 0]
+        lines += [f"## {SCENARIO_NAMES.get(scenario, scenario)}", ""]
+        if not seen:
+            lines += ["No P1/P2 incident was missed.", ""]
+            continue
+        header = ["Variant", "P1/P2"] + [c.removeprefix(MISSED) for c in seen]
+        lines += ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
+        for variant in variant_order(totals.index):
+            cells = [VARIANT_NAMES.get(variant, variant), str(int(urgent.loc[variant].sum()))]
+            cells += [str(int(totals.at[variant, c])) for c in seen]
+            lines.append("| " + " | ".join(cells) + " |")
+        lines.append("")
+    (out / "misses.md").write_text("\n".join(lines), encoding="utf-8")
+
+
 def style_axis(ax, title: str) -> None:
     """Aspeto comum dos painéis das figuras."""
     ax.set_title(title, fontsize=9.5, color=INK, loc="left")
@@ -284,6 +319,7 @@ def main() -> int:
     table = paired(valid)
     table.to_csv(out / "paired.csv", index=False)
     write_paired_md(table, commit, out)
+    write_misses_md(valid, commit, out)
     for scenario in sorted(summary["scenario"].unique()):
         name = SCENARIO_NAMES.get(scenario, scenario)
         part = summary[summary["scenario"] == scenario]

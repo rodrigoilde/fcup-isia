@@ -82,7 +82,7 @@ Each run writes `runs/<scenario>-s<seed>-<time>/`:
 | `events.jsonl` | Every message, decision and ground-truth event; the audit log |
 | `trace.json` | Layout and pre-generated incidents |
 | `config.json` | Merged parameters and the git commit of the code |
-| `summary.json` | Metrics M1–M13, the oracle B0, rule violations, the code commit and a **validity** verdict |
+| `summary.json` | Metrics M1–M13, the reason each missed P1/P2 was missed (`M2_missed`), the oracle B0, rule violations, the code commit and a **validity** verdict |
 
 **Validity.** A run is invalid (exit code 3) if the simulated clock did not advance as intended, e.g.
 because the laptop slept: closing the lid suspends the process. For long runs, plug in the charger and
@@ -135,6 +135,7 @@ configurations:
 |---|---|
 | `summary.csv`, `summary.md` | Means with 95 % CI per configuration and metric, with the code commit |
 | `paired.csv`, `paired.md` | Each variant minus "ours", paired by seed: mean, 95 % CI and in how many seeds ours was better. In C1, C3 and C4 also "B1 − No guidance": both lack guidance, so it isolates verification, Contract Net and reputation |
+| `misses.md` | Missed P1/P2 incidents per configuration, summed over seeds, by reason (not reported, discarded as P3, fused with another patient, …); see detailed design §7 |
 | `fig_c1.png` … `fig_c5.png` | Means per scenario |
 | `fig_c1_paired.png` … | Paired differences per scenario |
 

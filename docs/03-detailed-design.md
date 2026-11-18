@@ -505,11 +505,35 @@ Time metrics are computed over **detectable** incidents (a wearable or a witness
 An incident with neither can only be caught by a 112 call, which is not simulated (A7). It still
 counts against recall.
 
+**Why a P1/P2 was missed** (`src/cemr/metrics/misses.py`, key `M2_missed` in `summary.json`). Recall
+alone does not say where an incident was lost, so after each run every P1/P2 without a declared case at
+the patient gets one reason. The alerts of its own device and witness are followed through the event
+log, including P26 merges into another hub's candidate, and the incident gets the furthest point any of
+them reached:
+
+| Reason | Meaning |
+|---|---|
+| `undetectable` | No wearable and no witness: only a 112 call would catch it (A7) |
+| `not_reported` | No source sent an alert (the witness chose not to report, or the sensor missed it) |
+| `alert_lost` | An alert was sent, but no hub opened or joined a candidate with it |
+| `discarded_low_belief` | Discarded because the belief fell below `discard_below` |
+| `discarded_as_p3` | `W_max` expired with the candidate at P3 (from the triage or the alert type), whose threshold is the highest |
+| `discarded_window` | `W_max` expired without reaching the threshold or meeting OS4 |
+| `undecided_at_end` | The run ended while the candidate was still being verified |
+| `declared_p3` | Declared as P3: contact only, no dispatch and no location request |
+| `retracted` | Declared, then retracted (P07) before the location arrived |
+| `not_located` | Declared as P1/P2, but the precise location (P24) never arrived |
+| `other_incident` | Declared and located, but matched to another patient (alerts of two patients fused into one case) |
+
+The counts add up to the P1/P2 incidents that recall counts as missed. The diagnosis reads only the log,
+after the run, so it does not change the agents. `experiments/analyse.py` sums it over seeds in
+`results/misses.md`.
+
 ## 8. How the design is checked
 
 | Check | What it covers |
 |---|---|
-| Unit tests (`tests/test_*.py`, 86 tests, `pytest -m "not slow"`) | Fusion and OS4; the priority rule; triage that contradicts the report; alert merging by area and the P26 decision; Contract Net; late awards, uncovered tasks and surplus release (OL6, OL8); unanswered drifting false positives; disclosure; AED custody; reputation with gossip and decay; guidance steps; Larsen; network FIFO; trace reproducibility; the C5 pranksters; payload round trips and the FIPA envelope; the metrics; the rule checker catching injected violations |
+| Unit tests (`tests/test_*.py`, 93 tests, `pytest -m "not slow"`) | Fusion and OS4; the priority rule; triage that contradicts the report; alert merging by area and the P26 decision; Contract Net; late awards, uncovered tasks and surplus release (OL6, OL8); unanswered drifting false positives; disclosure; AED custody; reputation with gossip and decay; guidance steps; Larsen; network FIFO; trace reproducibility; the C5 pranksters; payload round trips and the FIPA envelope; the metrics; the rule checker catching injected violations |
 | End-to-end tests (`tests/test_end_to_end.py`) | C1: the OL1 sequence, OL2, OL7, OS5, zero rule violations, valid run. C4: the takeover of a crashed hub's case within 40 s, P28 reaching participants, the crashed hub silent, no orphaned cases |
 | Rule checker (`python -m cemr.metrics.check runs/<run>`) | Re-derives OS1–OS6, OS8, OS9, OS11–OS13, OL1–OL3, OL5–OL7, OL9 and DUP (no duplicate cases) from the audit log after every run. It runs inside `run.py` and is reported in `summary.json` |
 | Validity checks (`run.py`) | Discards runs in which the machine slept or the event loop stalled |
