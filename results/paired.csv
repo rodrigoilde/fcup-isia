@@ -1,267 +1,514 @@
 scenario,variant,metric,unit,better,mean_diff,ci95,n,ours_better
-c1,naive,M1 verification latency,s,lower,-7.12,2.343532702756436,10,0
+c1,naive,M1 verification latency,s,lower,-7.040000000000001,2.7490370968759223,10,0
 c1,naive,M2 precision,%,higher,0.0,0.0,10,0
 c1,naive,M2 recall (detectable),%,higher,0.0,0.0,10,0
 c1,naive,M2 recall (reported),%,higher,0.0,0.0,10,0
 c1,naive,M2 false dispatches,per run,lower,0.0,0.0,10,0
-c1,naive,M3 time to CPR,s,lower,243.37142857142857,56.99411577815147,7,7
-c1,naive,M3 CPR started by a bystander,%,higher,-92.85714285714286,17.5,7,7
-c1,naive,M4 time to AED,s,lower,,,0,0
-c1,naive,M5 time to EMS,s,lower,-6.979999999999995,2.349578916411278,10,0
-c1,naive,M6 survival proxy,%,higher,-10.472,1.8761472877978196,10,10
-c1,naive,M7 volunteer before EMS,%,higher,-30.839999999999996,33.461489412025735,10,6
-c1,naive,M7 AED before EMS,%,higher,-25.830000000000002,23.896228504747587,10,5
-c1,naive,M8 messages per candidate,msgs,lower,-39.79,8.453021040761433,10,0
-c1,naive,M9 gap to oracle B0,s,lower,51.685714285714276,50.586939767097995,7,5
-c1,naive,M10 alerts per volunteer,alerts,lower,1.1,0.41203959033083204,10,10
+c1,naive,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c1,naive,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c1,naive,M3 time to CPR,s,lower,257.9714285714286,39.26679725501773,7,7
+c1,naive,M3 CPR started by a bystander,%,higher,-100.0,0.0,7,7
+c1,naive,M4 time to AED,s,lower,42.400000000000034,,1,1
+c1,naive,M5 time to EMS,s,lower,-6.599999999999994,3.0059793597280433,10,1
+c1,naive,M6 survival proxy,%,higher,-10.521,1.7171719013282016,10,10
+c1,naive,M7 volunteer before EMS,%,higher,-25.839999999999996,35.784129478862546,10,5
+c1,naive,M7 AED before EMS,%,higher,-23.330000000000002,24.602995912331938,10,4
+c1,naive,M8 messages per candidate,msgs,lower,-38.67999999999999,7.925467670463082,10,0
+c1,naive,"M8 all messages, heartbeats included",msgs per run,lower,-66.1,106.12563112965061,10,3
+c1,naive,"M8 background messages (P23, P25, P27)",msgs per run,lower,37.0,58.132737458719795,10,7
+c1,naive,M9 gap to oracle B0 from the collapse,s,lower,57.41428571428571,45.4059772129911,7,6
+c1,naive,M9 gap to oracle B0 from the declaration,s,lower,62.842857142857156,45.39642120622872,7,6
+c1,naive,M10 alerts per volunteer,alerts,lower,1.09,0.3992382379816174,10,10
+c1,naive,M10 Jain index of tasks,0-1,higher,0.006000000000000008,0.04895739399382555,10,4
 c1,naive,M10 minutes on false alarms,min,lower,0.0,0.0,10,0
-c1,naive,M11 location recipients per case,agents,lower,-0.308,0.9749297612078978,10,3
+c1,naive,M11 location recipients per case,agents,lower,-0.192,1.0191672906839189,10,4
 c1,naive,M12 recovery after hub crash,s,lower,,,0,0
+c1,naive,"M13 time to CPR, central cells",s,lower,250.61999999999998,77.91524206315475,5,5
+c1,naive,"M13 time to CPR, peripheral cells",s,lower,262.34000000000003,37.87433474848105,5,5
 c1,naive,Rule violations,count,lower,0.0,0.0,10,0
-c1,no_guidance,M1 verification latency,s,lower,0.020000000000001173,0.40958062020125463,10,4
+c1,loss10,M1 verification latency,s,lower,6.49,5.643009764695117,10,7
+c1,loss10,M2 precision,%,higher,0.0,0.0,10,0
+c1,loss10,M2 recall (detectable),%,higher,0.0,0.0,10,0
+c1,loss10,M2 recall (reported),%,higher,0.0,0.0,10,0
+c1,loss10,M2 false dispatches,per run,lower,0.0,0.0,10,0
+c1,loss10,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c1,loss10,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c1,loss10,M3 time to CPR,s,lower,123.23999999999998,102.28662906201917,10,10
+c1,loss10,M3 CPR started by a bystander,%,higher,-40.0,32.837038708006396,10,5
+c1,loss10,M4 time to AED,s,lower,73.72000000000001,107.97873578144912,5,5
+c1,loss10,M5 time to EMS,s,lower,58.83,37.41088603001954,10,10
+c1,loss10,M6 survival proxy,%,higher,-13.224,8.762106887770264,10,10
+c1,loss10,M7 volunteer before EMS,%,higher,-5.0,11.299999999999999,10,1
+c1,loss10,M7 AED before EMS,%,higher,12.5,15.183918759295597,10,0
+c1,loss10,M8 messages per candidate,msgs,lower,-46.86,13.073326784972013,10,0
+c1,loss10,"M8 all messages, heartbeats included",msgs per run,lower,-150.7,83.59424017638216,10,1
+c1,loss10,"M8 background messages (P23, P25, P27)",msgs per run,lower,-134.5,76.3355681332249,10,1
+c1,loss10,M9 gap to oracle B0 from the collapse,s,lower,65.1,34.950136631746915,10,10
+c1,loss10,M9 gap to oracle B0 from the declaration,s,lower,59.65,35.58040864951759,10,10
+c1,loss10,M10 alerts per volunteer,alerts,lower,-0.043000000000000003,0.10112921305603696,10,2
+c1,loss10,M10 Jain index of tasks,0-1,higher,0.007099999999999998,0.04232962503968112,10,3
+c1,loss10,M10 minutes on false alarms,min,lower,0.0,0.0,10,0
+c1,loss10,M11 location recipients per case,agents,lower,-0.07800000000000003,0.8897807486241889,10,4
+c1,loss10,M12 recovery after hub crash,s,lower,,,0,0
+c1,loss10,"M13 time to CPR, central cells",s,lower,90.62857142857142,135.8379233989291,7,6
+c1,loss10,"M13 time to CPR, peripheral cells",s,lower,91.88571428571429,110.36165087263478,7,6
+c1,loss10,Rule violations,count,lower,0.2,0.30133333333333334,10,2
+c1,loss20,M1 verification latency,s,lower,11.600000000000001,7.102910899764968,9,8
+c1,loss20,M2 precision,%,higher,0.0,0.0,10,0
+c1,loss20,M2 recall (detectable),%,higher,-15.830000000000002,22.884477492056583,10,3
+c1,loss20,M2 recall (reported),%,higher,-15.830000000000002,22.884477492056583,10,3
+c1,loss20,M2 false dispatches,per run,lower,0.0,0.0,10,0
+c1,loss20,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c1,loss20,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c1,loss20,M3 time to CPR,s,lower,127.43333333333334,118.77062178417691,9,9
+c1,loss20,M3 CPR started by a bystander,%,higher,-33.333333333333336,33.34197804570089,9,4
+c1,loss20,M4 time to AED,s,lower,385.0,662.5898395085758,4,4
+c1,loss20,M5 time to EMS,s,lower,77.2777777777778,56.343678353131246,9,9
+c1,loss20,M6 survival proxy,%,higher,-21.822000000000003,12.281490912288383,10,10
+c1,loss20,M7 volunteer before EMS,%,higher,-35.0,29.41860711258172,10,5
+c1,loss20,M7 AED before EMS,%,higher,-10.0,22.599999999999998,10,1
+c1,loss20,M8 messages per candidate,msgs,lower,-55.6,36.22493239499864,10,1
+c1,loss20,"M8 all messages, heartbeats included",msgs per run,lower,-404.1,154.59473793114694,10,0
+c1,loss20,"M8 background messages (P23, P25, P27)",msgs per run,lower,-322.4,71.58902527932925,10,0
+c1,loss20,M9 gap to oracle B0 from the collapse,s,lower,190.9875,138.69390366443136,8,7
+c1,loss20,M9 gap to oracle B0 from the declaration,s,lower,182.60000000000002,136.41247669371847,8,7
+c1,loss20,M10 alerts per volunteer,alerts,lower,-0.21200000000000002,0.47927395849231047,10,3
+c1,loss20,M10 Jain index of tasks,0-1,higher,-0.014777777777777782,0.06901792438280878,9,5
+c1,loss20,M10 minutes on false alarms,min,lower,0.0,0.0,10,0
+c1,loss20,M11 location recipients per case,agents,lower,-0.6944444444444444,0.655790867536629,9,2
+c1,loss20,M12 recovery after hub crash,s,lower,,,0,0
+c1,loss20,"M13 time to CPR, central cells",s,lower,146.22857142857143,183.79421690212854,7,6
+c1,loss20,"M13 time to CPR, peripheral cells",s,lower,61.61428571428571,78.63430353011762,7,7
+c1,loss20,Rule violations,count,lower,0.4,0.49970480174688015,10,3
+c1,no_guidance,M1 verification latency,s,lower,0.10999999999999979,0.3114284009028218,10,5
 c1,no_guidance,M2 precision,%,higher,0.0,0.0,10,0
 c1,no_guidance,M2 recall (detectable),%,higher,0.0,0.0,10,0
 c1,no_guidance,M2 recall (reported),%,higher,0.0,0.0,10,0
 c1,no_guidance,M2 false dispatches,per run,lower,0.0,0.0,10,0
-c1,no_guidance,M3 time to CPR,s,lower,174.64000000000001,54.56585485594447,10,10
-c1,no_guidance,M3 CPR started by a bystander,%,higher,-90.0,15.066666666666665,10,10
-c1,no_guidance,M4 time to AED,s,lower,0.020000000000015915,0.468493927388622,5,2
-c1,no_guidance,M5 time to EMS,s,lower,0.07000000000001591,0.7771026787583151,10,5
-c1,no_guidance,M6 survival proxy,%,higher,-6.8340000000000005,2.910779397847479,10,10
+c1,no_guidance,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c1,no_guidance,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c1,no_guidance,M3 time to CPR,s,lower,177.64,51.430063908012215,10,10
+c1,no_guidance,M3 CPR started by a bystander,%,higher,-95.0,11.299999999999999,10,10
+c1,no_guidance,M4 time to AED,s,lower,-0.2800000000000068,1.4694607718479629,5,2
+c1,no_guidance,M5 time to EMS,s,lower,0.08999999999999772,0.5540458103803428,10,5
+c1,no_guidance,M6 survival proxy,%,higher,-7.043000000000001,2.6170501830963135,10,10
 c1,no_guidance,M7 volunteer before EMS,%,higher,0.0,0.0,10,0
 c1,no_guidance,M7 AED before EMS,%,higher,0.0,0.0,10,0
-c1,no_guidance,M8 messages per candidate,msgs,lower,-4.889999999999998,0.8979847091002033,10,0
-c1,no_guidance,M9 gap to oracle B0,s,lower,0.18000000000000113,0.6651553669799433,10,6
+c1,no_guidance,M8 messages per candidate,msgs,lower,-4.939999999999998,0.8927556241460726,10,0
+c1,no_guidance,"M8 all messages, heartbeats included",msgs per run,lower,-0.6,57.857961772295816,10,6
+c1,no_guidance,"M8 background messages (P23, P25, P27)",msgs per run,lower,11.9,57.32114273886109,10,8
+c1,no_guidance,M9 gap to oracle B0 from the collapse,s,lower,0.019999999999998862,0.6399343855254035,10,2
+c1,no_guidance,M9 gap to oracle B0 from the declaration,s,lower,-0.12000000000000002,0.40540253795182096,10,4
 c1,no_guidance,M10 alerts per volunteer,alerts,lower,0.0,0.0,10,0
+c1,no_guidance,M10 Jain index of tasks,0-1,higher,0.0,0.0,10,0
 c1,no_guidance,M10 minutes on false alarms,min,lower,0.0,0.0,10,0
 c1,no_guidance,M11 location recipients per case,agents,lower,0.0,0.0,10,0
 c1,no_guidance,M12 recovery after hub crash,s,lower,,,0,0
+c1,no_guidance,"M13 time to CPR, central cells",s,lower,154.28333333333333,62.574844157172656,6,6
+c1,no_guidance,"M13 time to CPR, peripheral cells",s,lower,187.32857142857145,78.9181238689821,7,7
 c1,no_guidance,Rule violations,count,lower,0.0,0.0,10,0
-c2,naive,M1 verification latency,s,lower,-8.3375,3.9935977648159384,8,0
-c2,naive,M2 precision,%,higher,-17.233333333333334,20.979462165413107,9,4
-c2,naive,M2 recall (detectable),%,higher,9.633333333333333,11.515426587842937,9,0
-c2,naive,M2 recall (reported),%,higher,9.375,15.52007628386996,8,0
-c2,naive,M2 false dispatches,per run,lower,1.6,0.8388764973330566,10,9
-c2,naive,M3 time to CPR,s,lower,209.86666666666667,60.458129128991224,3,3
-c2,naive,M3 CPR started by a bystander,%,higher,-100.0,0.0,3,3
+c1,naive_vs_no_guidance,M1 verification latency,s,lower,-7.150000000000001,2.610329894008716,10,0
+c1,naive_vs_no_guidance,M2 precision,%,higher,0.0,0.0,10,0
+c1,naive_vs_no_guidance,M2 recall (detectable),%,higher,0.0,0.0,10,0
+c1,naive_vs_no_guidance,M2 recall (reported),%,higher,0.0,0.0,10,0
+c1,naive_vs_no_guidance,M2 false dispatches,per run,lower,0.0,0.0,10,0
+c1,naive_vs_no_guidance,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c1,naive_vs_no_guidance,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c1,naive_vs_no_guidance,M3 time to CPR,s,lower,55.157142857142865,50.64125072507588,7,6
+c1,naive_vs_no_guidance,M3 CPR started by a bystander,%,higher,0.0,0.0,7,0
+c1,naive_vs_no_guidance,M4 time to AED,s,lower,42.80000000000001,,1,1
+c1,naive_vs_no_guidance,M5 time to EMS,s,lower,-6.689999999999992,2.80305807685502,10,1
+c1,naive_vs_no_guidance,M6 survival proxy,%,higher,-3.478,2.846997668219003,10,8
+c1,naive_vs_no_guidance,M7 volunteer before EMS,%,higher,-25.839999999999996,35.784129478862546,10,5
+c1,naive_vs_no_guidance,M7 AED before EMS,%,higher,-23.330000000000002,24.602995912331938,10,4
+c1,naive_vs_no_guidance,M8 messages per candidate,msgs,lower,-33.739999999999995,7.434312281128181,10,0
+c1,naive_vs_no_guidance,"M8 all messages, heartbeats included",msgs per run,lower,-65.5,105.67161634043457,10,4
+c1,naive_vs_no_guidance,"M8 background messages (P23, P25, P27)",msgs per run,lower,25.1,68.23424529923047,10,5
+c1,naive_vs_no_guidance,M9 gap to oracle B0 from the collapse,s,lower,57.82857142857143,45.157438017820866,7,6
+c1,naive_vs_no_guidance,M9 gap to oracle B0 from the declaration,s,lower,63.21428571428572,45.35190192630662,7,6
+c1,naive_vs_no_guidance,M10 alerts per volunteer,alerts,lower,1.09,0.3992382379816174,10,10
+c1,naive_vs_no_guidance,M10 Jain index of tasks,0-1,higher,0.006000000000000008,0.04895739399382555,10,4
+c1,naive_vs_no_guidance,M10 minutes on false alarms,min,lower,0.0,0.0,10,0
+c1,naive_vs_no_guidance,M11 location recipients per case,agents,lower,-0.192,1.0191672906839189,10,4
+c1,naive_vs_no_guidance,M12 recovery after hub crash,s,lower,,,0,0
+c1,naive_vs_no_guidance,"M13 time to CPR, central cells",s,lower,84.625,65.52644127564078,4,4
+c1,naive_vs_no_guidance,"M13 time to CPR, peripheral cells",s,lower,50.67500000000001,84.40083593336027,4,3
+c1,naive_vs_no_guidance,Rule violations,count,lower,0.0,0.0,10,0
+c2,naive,M1 verification latency,s,lower,-9.714285714285714,5.6165640445620015,7,0
+c2,naive,M2 precision,%,higher,1.7599999999999998,12.14518196487809,10,5
+c2,naive,M2 recall (detectable),%,higher,7.411111111111111,17.119666666666667,9,0
+c2,naive,M2 recall (reported),%,higher,12.5,29.499999999999996,8,0
+c2,naive,M2 false dispatches,per run,lower,4.7,1.431333333333333,10,10
+c2,naive,M2 false dispatches with a witness,per run,lower,0.2,0.30133333333333334,10,2
+c2,naive,M2 false dispatches from sensors only,per run,lower,4.5,1.3992545634491718,10,10
+c2,naive,M3 time to CPR,s,lower,216.55,445.48550000000006,2,2
+c2,naive,M3 CPR started by a bystander,%,higher,-100.0,0.0,2,2
 c2,naive,M4 time to AED,s,lower,,,0,0
-c2,naive,M5 time to EMS,s,lower,-0.7875000000000085,8.236539770611026,8,3
-c2,naive,M6 survival proxy,%,higher,-3.7428571428571433,13.155905480049634,7,5
-c2,naive,M7 volunteer before EMS,%,higher,-40.74444444444444,44.038263515316366,9,4
-c2,naive,M7 AED before EMS,%,higher,-16.666666666666668,27.223611075682083,9,2
-c2,naive,M8 messages per candidate,msgs,lower,5.590000000000001,18.138585041103212,10,5
-c2,naive,M9 gap to oracle B0,s,lower,43.650000000000006,13.345500000000143,2,2
-c2,naive,M10 alerts per volunteer,alerts,lower,2.673,0.4697569456171516,10,10
-c2,naive,M10 minutes on false alarms,min,lower,9.67,9.967772921659973,10,10
-c2,naive,M11 location recipients per case,agents,lower,0.10777777777777775,0.6360868561848382,9,5
+c2,naive,M5 time to EMS,s,lower,-11.757142857142858,6.422031090965945,7,0
+c2,naive,M6 survival proxy,%,higher,-9.281428571428568,4.533992547045777,7,6
+c2,naive,M7 volunteer before EMS,%,higher,-29.633333333333333,68.44217237201052,9,5
+c2,naive,M7 AED before EMS,%,higher,-5.555555555555555,12.833333333333336,9,1
+c2,naive,M8 messages per candidate,msgs,lower,-11.450000000000001,7.612488314167275,10,1
+c2,naive,"M8 all messages, heartbeats included",msgs per run,lower,-176.8,183.12255008175384,10,4
+c2,naive,"M8 background messages (P23, P25, P27)",msgs per run,lower,-12.1,71.45036058069343,10,6
+c2,naive,M9 gap to oracle B0 from the collapse,s,lower,,,0,0
+c2,naive,M9 gap to oracle B0 from the declaration,s,lower,,,0,0
+c2,naive,M10 alerts per volunteer,alerts,lower,2.9669999999999996,0.8707181008033923,10,10
+c2,naive,M10 Jain index of tasks,0-1,higher,0.13289999999999996,0.07784776957056065,10,1
+c2,naive,M10 minutes on false alarms,min,lower,14.85,11.09561801493424,10,9
+c2,naive,M11 location recipients per case,agents,lower,-0.5519999999999999,0.6368924334087611,10,3
 c2,naive,M12 recovery after hub crash,s,lower,,,0,0
+c2,naive,"M13 time to CPR, central cells",s,lower,172.2,,1,1
+c2,naive,"M13 time to CPR, peripheral cells",s,lower,251.60000000000002,,1,1
 c2,naive,Rule violations,count,lower,0.1,0.22599999999999998,10,1
-c2,alert_first,M1 verification latency,s,lower,-2.7749999999999995,5.59825308211665,8,4
-c2,alert_first,M2 precision,%,higher,0.0,0.0,9,0
+c2,alert_first,M1 verification latency,s,lower,-1.2857142857142858,3.163130042642362,7,3
+c2,alert_first,M2 precision,%,higher,-0.6000000000000003,3.9128397303691784,10,1
 c2,alert_first,M2 recall (detectable),%,higher,0.0,0.0,9,0
 c2,alert_first,M2 recall (reported),%,higher,0.0,0.0,8,0
-c2,alert_first,M2 false dispatches,per run,lower,0.0,0.0,10,0
-c2,alert_first,M3 time to CPR,s,lower,9.0,19.68948923374383,8,5
-c2,alert_first,M3 CPR started by a bystander,%,higher,-12.5,29.499999999999996,8,1
-c2,alert_first,M4 time to AED,s,lower,0.10000000000002274,2.541999999999856,2,1
-c2,alert_first,M5 time to EMS,s,lower,0.13750000000000995,0.23573645999596235,8,5
-c2,alert_first,M6 survival proxy,%,higher,-0.03285714285714241,0.05418409975875433,7,3
+c2,alert_first,M2 false dispatches,per run,lower,-0.1,0.22599999999999998,10,0
+c2,alert_first,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c2,alert_first,M2 false dispatches from sensors only,per run,lower,-0.1,0.22599999999999998,10,0
+c2,alert_first,M3 time to CPR,s,lower,0.17142857142857285,0.6431498011090929,7,4
+c2,alert_first,M3 CPR started by a bystander,%,higher,0.0,0.0,7,0
+c2,alert_first,M4 time to AED,s,lower,1.5,,1,1
+c2,alert_first,M5 time to EMS,s,lower,-0.20000000000000487,0.6720243051160328,7,3
+c2,alert_first,M6 survival proxy,%,higher,0.005714285714286608,0.05342518132865868,7,1
 c2,alert_first,M7 volunteer before EMS,%,higher,0.0,0.0,9,0
 c2,alert_first,M7 AED before EMS,%,higher,0.0,0.0,9,0
-c2,alert_first,M8 messages per candidate,msgs,lower,-22.78000000000001,12.676153556799298,10,1
-c2,alert_first,M9 gap to oracle B0,s,lower,0.1500000000000045,0.4998853701933375,6,2
-c2,alert_first,M10 alerts per volunteer,alerts,lower,0.0,0.0,10,0
-c2,alert_first,M10 minutes on false alarms,min,lower,0.009999999999999787,0.022599999999999513,10,1
-c2,alert_first,M11 location recipients per case,agents,lower,-0.05555555555555555,0.12833333333333333,9,0
+c2,alert_first,M8 messages per candidate,msgs,lower,-11.7,4.269878447398187,10,0
+c2,alert_first,"M8 all messages, heartbeats included",msgs per run,lower,208.7,82.57925095594197,10,10
+c2,alert_first,"M8 background messages (P23, P25, P27)",msgs per run,lower,-25.3,61.555262647116976,10,5
+c2,alert_first,M9 gap to oracle B0 from the collapse,s,lower,-7.540000000000001,19.893148545164987,5,2
+c2,alert_first,M9 gap to oracle B0 from the declaration,s,lower,-7.519999999999999,19.672188311420758,5,2
+c2,alert_first,M10 alerts per volunteer,alerts,lower,-0.09200000000000004,0.13016762936050325,10,0
+c2,alert_first,M10 Jain index of tasks,0-1,higher,-0.003500000000000003,0.0285596803981495,10,3
+c2,alert_first,M10 minutes on false alarms,min,lower,0.3599999999999987,2.55982622326855,10,1
+c2,alert_first,M11 location recipients per case,agents,lower,-0.022999999999999955,0.16875507419531616,10,2
 c2,alert_first,M12 recovery after hub crash,s,lower,,,0,0
+c2,alert_first,"M13 time to CPR, central cells",s,lower,0.13333333333333522,1.4964439329438493,3,2
+c2,alert_first,"M13 time to CPR, peripheral cells",s,lower,0.10000000000000142,0.9630202490082935,5,2
 c2,alert_first,Rule violations,count,lower,0.0,0.0,10,0
-c2,confirm_first,M1 verification latency,s,lower,7.2375,9.962836154930985,8,4
-c2,confirm_first,M2 precision,%,higher,0.0,0.0,9,0
-c2,confirm_first,M2 recall (detectable),%,higher,0.0,0.0,9,0
-c2,confirm_first,M2 recall (reported),%,higher,0.0,0.0,8,0
-c2,confirm_first,M2 false dispatches,per run,lower,0.0,0.0,10,0
-c2,confirm_first,M3 time to CPR,s,lower,17.112499999999997,25.86179138572135,8,5
-c2,confirm_first,M3 CPR started by a bystander,%,higher,-12.5,29.499999999999996,8,1
-c2,confirm_first,M4 time to AED,s,lower,15.450000000000031,187.47250000000017,2,2
-c2,confirm_first,M5 time to EMS,s,lower,8.225000000000001,10.208558923066187,8,5
-c2,confirm_first,M6 survival proxy,%,higher,-0.40999999999999864,0.9683811233187047,7,4
+c2,confirm_first,M1 verification latency,s,lower,3.9285714285714293,10.511194033029739,7,5
+c2,confirm_first,M2 precision,%,higher,1.81,3.4219000576352965,10,1
+c2,confirm_first,M2 recall (detectable),%,higher,3.6999999999999997,8.546999999999999,9,0
+c2,confirm_first,M2 recall (reported),%,higher,6.25,14.749999999999998,8,0
+c2,confirm_first,M2 false dispatches,per run,lower,0.2,0.5637430462739405,10,2
+c2,confirm_first,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c2,confirm_first,M2 false dispatches from sensors only,per run,lower,0.2,0.5637430462739405,10,2
+c2,confirm_first,M3 time to CPR,s,lower,5.414285714285712,12.614688198022705,7,3
+c2,confirm_first,M3 CPR started by a bystander,%,higher,0.0,0.0,7,0
+c2,confirm_first,M4 time to AED,s,lower,1.0999999999999943,,1,1
+c2,confirm_first,M5 time to EMS,s,lower,3.2285714285714318,10.30508814453649,7,2
+c2,confirm_first,M6 survival proxy,%,higher,-0.365714285714284,0.9665176752996635,7,3
 c2,confirm_first,M7 volunteer before EMS,%,higher,0.0,0.0,9,0
 c2,confirm_first,M7 AED before EMS,%,higher,0.0,0.0,9,0
-c2,confirm_first,M8 messages per candidate,msgs,lower,24.288888888888884,13.524926950922056,9,9
-c2,confirm_first,M9 gap to oracle B0,s,lower,8.866666666666667,14.110628889048296,6,4
-c2,confirm_first,M10 alerts per volunteer,alerts,lower,0.0,0.0,10,0
-c2,confirm_first,M10 minutes on false alarms,min,lower,0.009999999999999787,0.022599999999999513,10,1
-c2,confirm_first,M11 location recipients per case,agents,lower,0.0,0.0,9,0
+c2,confirm_first,M8 messages per candidate,msgs,lower,15.7,7.836187672870301,10,10
+c2,confirm_first,"M8 all messages, heartbeats included",msgs per run,lower,-369.0,118.6910077282839,10,0
+c2,confirm_first,"M8 background messages (P23, P25, P27)",msgs per run,lower,-188.8,55.789203591136996,10,0
+c2,confirm_first,M9 gap to oracle B0 from the collapse,s,lower,3.5399999999999965,16.9029029530433,5,2
+c2,confirm_first,M9 gap to oracle B0 from the declaration,s,lower,-1.159999999999997,1.6647535072796864,5,2
+c2,confirm_first,M10 alerts per volunteer,alerts,lower,0.16299999999999987,0.32214228112573,10,3
+c2,confirm_first,M10 Jain index of tasks,0-1,higher,0.003899999999999998,0.027072770912651124,10,2
+c2,confirm_first,M10 minutes on false alarms,min,lower,3.219999999999999,5.385232195138435,10,2
+c2,confirm_first,M11 location recipients per case,agents,lower,-0.16599999999999998,0.48822974810362924,10,1
 c2,confirm_first,M12 recovery after hub crash,s,lower,,,0,0
+c2,confirm_first,"M13 time to CPR, central cells",s,lower,-3.0666666666666678,12.117390166386677,3,0
+c2,confirm_first,"M13 time to CPR, peripheral cells",s,lower,12.42,21.27043384042742,5,3
 c2,confirm_first,Rule violations,count,lower,0.0,0.0,10,0
-c2,no_reputation,M1 verification latency,s,lower,-0.5000000000000018,1.7806441851997594,8,4
-c2,no_reputation,M2 precision,%,higher,0.7888888888888891,1.8223333333333338,9,0
-c2,no_reputation,M2 recall (detectable),%,higher,2.2222222222222223,5.133333333333334,9,0
-c2,no_reputation,M2 recall (reported),%,higher,3.125,7.374999999999999,8,0
-c2,no_reputation,M2 false dispatches,per run,lower,0.0,0.0,10,0
-c2,no_reputation,M3 time to CPR,s,lower,9.024999999999999,19.815356321369975,8,6
-c2,no_reputation,M3 CPR started by a bystander,%,higher,-12.5,29.499999999999996,8,1
-c2,no_reputation,M4 time to AED,s,lower,0.15000000000000568,8.261500000000073,2,1
-c2,no_reputation,M5 time to EMS,s,lower,3.125000000000007,7.144152803916942,8,5
-c2,no_reputation,M6 survival proxy,%,higher,-0.03285714285714241,0.054184099758756765,7,4
+c2,no_reputation,M1 verification latency,s,lower,-2.114285714285716,5.149561470002406,7,1
+c2,no_reputation,M2 precision,%,higher,-0.48000000000000026,3.3887944523089617,10,4
+c2,no_reputation,M2 recall (detectable),%,higher,3.6999999999999997,8.546999999999999,9,0
+c2,no_reputation,M2 recall (reported),%,higher,6.25,14.749999999999998,8,0
+c2,no_reputation,M2 false dispatches,per run,lower,1.1,0.786503090337928,10,6
+c2,no_reputation,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c2,no_reputation,M2 false dispatches from sensors only,per run,lower,1.1,0.786503090337928,10,6
+c2,no_reputation,M3 time to CPR,s,lower,-1.857142857142854,4.848647577761591,7,2
+c2,no_reputation,M3 CPR started by a bystander,%,higher,0.0,0.0,7,0
+c2,no_reputation,M4 time to AED,s,lower,1.0,,1,1
+c2,no_reputation,M5 time to EMS,s,lower,-2.428571428571437,4.7189467398280005,7,2
+c2,no_reputation,M6 survival proxy,%,higher,0.030000000000002153,0.08570832320531376,7,2
 c2,no_reputation,M7 volunteer before EMS,%,higher,0.0,0.0,9,0
 c2,no_reputation,M7 AED before EMS,%,higher,0.0,0.0,9,0
-c2,no_reputation,M8 messages per candidate,msgs,lower,1.310000000000001,3.188736399683527,10,1
-c2,no_reputation,M9 gap to oracle B0,s,lower,0.4833333333333343,0.7401619830220306,6,5
-c2,no_reputation,M10 alerts per volunteer,alerts,lower,0.07000000000000002,0.1582,10,1
-c2,no_reputation,M10 minutes on false alarms,min,lower,0.009999999999999787,0.022599999999999513,10,1
-c2,no_reputation,M11 location recipients per case,agents,lower,0.05111111111111111,0.11806666666666665,9,1
+c2,no_reputation,M8 messages per candidate,msgs,lower,6.8,4.9096300200049,10,9
+c2,no_reputation,"M8 all messages, heartbeats included",msgs per run,lower,-136.4,75.64772131693354,10,1
+c2,no_reputation,"M8 background messages (P23, P25, P27)",msgs per run,lower,-230.7,39.70724170727551,10,0
+c2,no_reputation,M9 gap to oracle B0 from the collapse,s,lower,-10.640000000000002,19.369359479342627,5,0
+c2,no_reputation,M9 gap to oracle B0 from the declaration,s,lower,-7.519999999999999,19.96388437554174,5,1
+c2,no_reputation,M10 alerts per volunteer,alerts,lower,0.5669999999999998,0.4336485319805531,10,7
+c2,no_reputation,M10 Jain index of tasks,0-1,higher,0.049600000000000005,0.030178875584679354,10,0
+c2,no_reputation,M10 minutes on false alarms,min,lower,11.799999999999999,8.980099880662053,10,8
+c2,no_reputation,M11 location recipients per case,agents,lower,-0.15700000000000003,0.4712887291011506,10,3
 c2,no_reputation,M12 recovery after hub crash,s,lower,,,0,0
+c2,no_reputation,"M13 time to CPR, central cells",s,lower,-4.966666666666666,18.373522011609836,3,0
+c2,no_reputation,"M13 time to CPR, peripheral cells",s,lower,0.32000000000000456,1.5363116090168656,5,3
 c2,no_reputation,Rule violations,count,lower,0.0,0.0,10,0
-c3,naive,M1 verification latency,s,lower,-10.15,1.7448247349105164,10,0
+c3,naive,M1 verification latency,s,lower,-10.35,2.287517475343084,10,0
 c3,naive,M2 precision,%,higher,0.0,0.0,10,0
-c3,naive,M2 recall (detectable),%,higher,5.61,4.268077131969904,10,0
-c3,naive,M2 recall (reported),%,higher,4.99,4.2980225018799825,10,0
+c3,naive,M2 recall (detectable),%,higher,1.11,2.5086000000000004,10,0
+c3,naive,M2 recall (reported),%,higher,0.24000000000000057,0.5424000000000011,10,0
 c3,naive,M2 false dispatches,per run,lower,0.0,0.0,10,0
-c3,naive,M3 time to CPR,s,lower,239.07,63.394502172734896,10,10
-c3,naive,M3 CPR started by a bystander,%,higher,-85.41000000000001,9.875820740238924,10,10
-c3,naive,M4 time to AED,s,lower,178.32000000000002,326.16528629172046,5,3
-c3,naive,M5 time to EMS,s,lower,14.199999999999994,56.33277368084922,10,1
-c3,naive,M6 survival proxy,%,higher,-9.1925,6.669025160182171,8,7
-c3,naive,M7 volunteer before EMS,%,higher,-25.04,18.541068404550533,10,6
-c3,naive,M7 AED before EMS,%,higher,-22.220000000000002,25.41844906222425,10,8
-c3,naive,M8 messages per candidate,msgs,lower,-65.27000000000001,8.348078892509074,10,0
-c3,naive,M9 gap to oracle B0,s,lower,-17.57,70.31202716744521,10,4
-c3,naive,M10 alerts per volunteer,alerts,lower,1.4089999999999998,0.3702148577965683,10,10
+c3,naive,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c3,naive,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c3,naive,M3 time to CPR,s,lower,286.42,76.35455924170837,10,10
+c3,naive,M3 CPR started by a bystander,%,higher,-88.42,9.856744146691303,10,10
+c3,naive,M4 time to AED,s,lower,194.64000000000001,383.57283697602986,5,4
+c3,naive,M5 time to EMS,s,lower,-12.1,3.7150868391226397,10,0
+c3,naive,M6 survival proxy,%,higher,-10.871249999999998,5.689838617313448,8,8
+c3,naive,M7 volunteer before EMS,%,higher,-25.27,17.174977352597068,10,7
+c3,naive,M7 AED before EMS,%,higher,-22.79,26.230401379654438,10,7
+c3,naive,M8 messages per candidate,msgs,lower,-72.07,9.028884638634924,10,0
+c3,naive,"M8 all messages, heartbeats included",msgs per run,lower,-491.0,153.01051231859853,10,0
+c3,naive,"M8 background messages (P23, P25, P27)",msgs per run,lower,3.2,62.64527224867899,10,5
+c3,naive,M9 gap to oracle B0 from the collapse,s,lower,30.270000000000003,71.00650861651108,10,7
+c3,naive,M9 gap to oracle B0 from the declaration,s,lower,33.79,72.71672247353652,10,7
+c3,naive,M10 alerts per volunteer,alerts,lower,1.322,0.41413879069166587,10,10
+c3,naive,M10 Jain index of tasks,0-1,higher,0.13689999999999997,0.10265390587578999,10,1
 c3,naive,M10 minutes on false alarms,min,lower,0.0,0.0,10,0
-c3,naive,M11 location recipients per case,agents,lower,-0.005999999999999872,0.8500604787895976,10,4
+c3,naive,M11 location recipients per case,agents,lower,0.258,0.7598276998840663,10,6
 c3,naive,M12 recovery after hub crash,s,lower,,,0,0
+c3,naive,"M13 time to CPR, central cells",s,lower,277.19,77.84548375399392,10,10
+c3,naive,"M13 time to CPR, peripheral cells",s,lower,224.3,,1,1
 c3,naive,Rule violations,count,lower,0.0,0.0,10,0
-c3,k1,M1 verification latency,s,lower,0.060000000000000143,0.4420982093004526,10,6
+c3,k1,M1 verification latency,s,lower,-0.04000000000000057,0.23389756542365048,10,5
 c3,k1,M2 precision,%,higher,0.0,0.0,10,0
-c3,k1,M2 recall (detectable),%,higher,1.0,2.26,10,0
-c3,k1,M2 recall (reported),%,higher,1.0,2.26,10,0
+c3,k1,M2 recall (detectable),%,higher,0.0,0.0,10,0
+c3,k1,M2 recall (reported),%,higher,0.0,0.0,10,0
 c3,k1,M2 false dispatches,per run,lower,0.0,0.0,10,0
-c3,k1,M3 time to CPR,s,lower,-0.6200000000000017,2.2551735129105555,10,5
-c3,k1,M3 CPR started by a bystander,%,higher,0.0,0.0,10,0
-c3,k1,M4 time to AED,s,lower,-0.6333333333333258,91.29546652901229,9,4
-c3,k1,M5 time to EMS,s,lower,0.07999999999998408,0.9401889739125061,10,4
-c3,k1,M6 survival proxy,%,higher,-0.06625000000000014,0.7431449250602857,8,4
-c3,k1,M7 volunteer before EMS,%,higher,-0.1700000000000003,7.657221082525085,10,2
-c3,k1,M7 AED before EMS,%,higher,0.18000000000000008,4.522610801541762,10,1
-c3,k1,M8 messages per candidate,msgs,lower,-3.6799999999999984,5.986208699632474,10,1
-c3,k1,M9 gap to oracle B0,s,lower,6.690000000000007,33.330406478236114,10,4
-c3,k1,M10 alerts per volunteer,alerts,lower,-0.05,0.06670297677848494,10,0
+c3,k1,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c3,k1,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c3,k1,M3 time to CPR,s,lower,0.29999999999999927,2.5642121077113194,10,5
+c3,k1,M3 CPR started by a bystander,%,higher,-2.5,5.6499999999999995,10,1
+c3,k1,M4 time to AED,s,lower,-35.14444444444446,45.150178180096304,9,4
+c3,k1,M5 time to EMS,s,lower,1.8399999999999808,3.7505409482425804,10,6
+c3,k1,M6 survival proxy,%,higher,-0.3437500000000003,0.529648538116147,8,7
+c3,k1,M7 volunteer before EMS,%,higher,1.8400000000000005,5.849496295883567,10,1
+c3,k1,M7 AED before EMS,%,higher,3.9299999999999997,6.189452867221426,10,0
+c3,k1,M8 messages per candidate,msgs,lower,-5.729999999999999,2.302551964910048,10,0
+c3,k1,"M8 all messages, heartbeats included",msgs per run,lower,-67.0,48.13911996610564,10,1
+c3,k1,"M8 background messages (P23, P25, P27)",msgs per run,lower,-26.5,44.0764382761483,10,3
+c3,k1,M9 gap to oracle B0 from the collapse,s,lower,8.620000000000001,27.69630384196899,10,7
+c3,k1,M9 gap to oracle B0 from the declaration,s,lower,7.260000000000005,27.85258247400248,10,6
+c3,k1,M10 alerts per volunteer,alerts,lower,-0.04899999999999993,0.067586218516302,10,0
+c3,k1,M10 Jain index of tasks,0-1,higher,-0.1505,0.06297006041674795,10,9
 c3,k1,M10 minutes on false alarms,min,lower,0.0,0.0,10,0
-c3,k1,M11 location recipients per case,agents,lower,-1.2309999999999999,0.4346863891742335,10,0
+c3,k1,M11 location recipients per case,agents,lower,-1.0959999999999996,0.3921271866230252,10,0
 c3,k1,M12 recovery after hub crash,s,lower,,,0,0
+c3,k1,"M13 time to CPR, central cells",s,lower,-0.12000000000000029,3.156421718057047,10,4
+c3,k1,"M13 time to CPR, peripheral cells",s,lower,27.960000000000008,34.43191330495591,5,5
 c3,k1,Rule violations,count,lower,0.0,0.0,10,0
-c3,k3,M1 verification latency,s,lower,1.0900000000000005,2.486559230029408,10,6
+c3,k3,M1 verification latency,s,lower,0.2699999999999996,0.2899110131670681,10,8
 c3,k3,M2 precision,%,higher,0.0,0.0,10,0
-c3,k3,M2 recall (detectable),%,higher,2.25,3.4160572627258783,10,0
-c3,k3,M2 recall (reported),%,higher,2.25,3.4160572627258783,10,0
+c3,k3,M2 recall (detectable),%,higher,0.0,0.0,10,0
+c3,k3,M2 recall (reported),%,higher,0.0,0.0,10,0
 c3,k3,M2 false dispatches,per run,lower,0.0,0.0,10,0
-c3,k3,M3 time to CPR,s,lower,7.409999999999999,15.680356010839379,10,6
-c3,k3,M3 CPR started by a bystander,%,higher,2.6799999999999997,5.61936172887989,10,0
-c3,k3,M4 time to AED,s,lower,12.60000000000001,55.44387660057691,9,5
-c3,k3,M5 time to EMS,s,lower,26.039999999999974,58.280675044363264,10,8
-c3,k3,M6 survival proxy,%,higher,0.7537499999999993,3.564409099846905,8,3
-c3,k3,M7 volunteer before EMS,%,higher,4.33,5.03078346405629,10,0
-c3,k3,M7 AED before EMS,%,higher,-3.2400000000000007,12.433341611436028,10,2
-c3,k3,M8 messages per candidate,msgs,lower,15.480000000000004,10.357432033515302,10,8
-c3,k3,M9 gap to oracle B0,s,lower,-20.15,49.06893497406366,10,3
-c3,k3,M10 alerts per volunteer,alerts,lower,0.3589999999999999,0.22912853462146035,10,7
+c3,k3,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c3,k3,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c3,k3,M3 time to CPR,s,lower,-0.08000000000000043,2.6314527495916264,10,3
+c3,k3,M3 CPR started by a bystander,%,higher,-2.5,5.6499999999999995,10,1
+c3,k3,M4 time to AED,s,lower,6.522222222222215,42.70326521896319,9,6
+c3,k3,M5 time to EMS,s,lower,-2.2737367544323207e-14,0.45947158055023574,10,3
+c3,k3,M6 survival proxy,%,higher,0.06499999999999961,0.7719375141255185,8,4
+c3,k3,M7 volunteer before EMS,%,higher,5.090000000000001,5.938680093159497,10,0
+c3,k3,M7 AED before EMS,%,higher,1.7599999999999993,6.9552048219700575,10,1
+c3,k3,M8 messages per candidate,msgs,lower,13.640000000000004,5.0907945749602215,10,9
+c3,k3,"M8 all messages, heartbeats included",msgs per run,lower,160.8,69.11873360465388,10,9
+c3,k3,"M8 background messages (P23, P25, P27)",msgs per run,lower,61.2,37.70100301642443,10,9
+c3,k3,M9 gap to oracle B0 from the collapse,s,lower,-17.749999999999993,48.98396999404781,10,5
+c3,k3,M9 gap to oracle B0 from the declaration,s,lower,-18.779999999999994,49.043259010977,10,4
+c3,k3,M10 alerts per volunteer,alerts,lower,0.383,0.1477781955048397,10,9
+c3,k3,M10 Jain index of tasks,0-1,higher,0.14079999999999998,0.05686623877916392,10,0
 c3,k3,M10 minutes on false alarms,min,lower,0.0,0.0,10,0
-c3,k3,M11 location recipients per case,agents,lower,1.5690000000000002,0.7040217408574821,10,9
+c3,k3,M11 location recipients per case,agents,lower,1.6919999999999997,0.7541826146085426,10,9
 c3,k3,M12 recovery after hub crash,s,lower,,,0,0
+c3,k3,"M13 time to CPR, central cells",s,lower,-0.6000000000000008,3.223175204670075,10,2
+c3,k3,"M13 time to CPR, peripheral cells",s,lower,18.02,76.84743696806028,5,4
 c3,k3,Rule violations,count,lower,0.0,0.0,10,0
-c3,no_guidance,M1 verification latency,s,lower,-0.24999999999999858,1.387545114381671,10,7
+c3,no_guidance,M1 verification latency,s,lower,-0.1999999999999993,0.8772371781147131,10,6
 c3,no_guidance,M2 precision,%,higher,0.0,0.0,10,0
-c3,no_guidance,M2 recall (detectable),%,higher,2.1100000000000003,3.184462167043806,10,0
-c3,no_guidance,M2 recall (reported),%,higher,1.2400000000000007,2.26481620151982,10,0
+c3,no_guidance,M2 recall (detectable),%,higher,1.11,2.5086000000000004,10,0
+c3,no_guidance,M2 recall (reported),%,higher,0.24000000000000057,0.5424000000000011,10,0
 c3,no_guidance,M2 false dispatches,per run,lower,0.0,0.0,10,0
-c3,no_guidance,M3 time to CPR,s,lower,269.03000000000003,34.476307201645334,10,10
-c3,no_guidance,M3 CPR started by a bystander,%,higher,-85.41000000000001,9.875820740238924,10,10
-c3,no_guidance,M4 time to AED,s,lower,30.96666666666668,65.26146344896044,9,6
-c3,no_guidance,M5 time to EMS,s,lower,-0.5599999999999966,3.5363684549108965,10,5
-c3,no_guidance,M6 survival proxy,%,higher,-7.135,4.676993248414442,8,6
-c3,no_guidance,M7 volunteer before EMS,%,higher,-4.67,5.534826693663395,10,3
-c3,no_guidance,M7 AED before EMS,%,higher,0.0,0.0,10,0
-c3,no_guidance,M8 messages per candidate,msgs,lower,-7.859999999999997,6.903855095685468,10,1
-c3,no_guidance,M9 gap to oracle B0,s,lower,-0.25000000000000566,14.870053898878629,10,3
-c3,no_guidance,M10 alerts per volunteer,alerts,lower,0.049999999999999954,0.10568168557828114,10,2
+c3,no_guidance,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c3,no_guidance,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c3,no_guidance,M3 time to CPR,s,lower,264.14,33.5119755441411,10,10
+c3,no_guidance,M3 CPR started by a bystander,%,higher,-88.42,9.856744146691303,10,10
+c3,no_guidance,M4 time to AED,s,lower,-1.155555555555553,4.724706307744898,9,5
+c3,no_guidance,M5 time to EMS,s,lower,-1.1200000000000216,2.802723995607771,10,4
+c3,no_guidance,M6 survival proxy,%,higher,-7.734999999999999,4.376266231128343,8,7
+c3,no_guidance,M7 volunteer before EMS,%,higher,0.0,0.0,10,0
+c3,no_guidance,M7 AED before EMS,%,higher,1.25,2.8249999999999997,10,0
+c3,no_guidance,M8 messages per candidate,msgs,lower,-9.689999999999998,4.589457281398072,10,0
+c3,no_guidance,"M8 all messages, heartbeats included",msgs per run,lower,-37.1,55.97063881476906,10,2
+c3,no_guidance,"M8 background messages (P23, P25, P27)",msgs per run,lower,7.3,31.62932597729167,10,5
+c3,no_guidance,M9 gap to oracle B0 from the collapse,s,lower,-0.060000000000003696,0.6158931942038898,10,4
+c3,no_guidance,M9 gap to oracle B0 from the declaration,s,lower,-0.16999999999999887,0.4788854142694252,10,4
+c3,no_guidance,M10 alerts per volunteer,alerts,lower,0.04700000000000002,0.10622000000000002,10,1
+c3,no_guidance,M10 Jain index of tasks,0-1,higher,0.004799999999999999,0.01639707486108422,10,1
 c3,no_guidance,M10 minutes on false alarms,min,lower,0.0,0.0,10,0
-c3,no_guidance,M11 location recipients per case,agents,lower,-0.10399999999999991,0.19144748000430814,10,2
+c3,no_guidance,M11 location recipients per case,agents,lower,-0.012999999999999989,0.1638755420704654,10,1
 c3,no_guidance,M12 recovery after hub crash,s,lower,,,0,0
+c3,no_guidance,"M13 time to CPR, central cells",s,lower,268.11,55.30594960725291,10,10
+c3,no_guidance,"M13 time to CPR, peripheral cells",s,lower,100.12,155.35597647647802,5,4
 c3,no_guidance,Rule violations,count,lower,0.0,0.0,10,0
-c4,naive,M1 verification latency,s,lower,-11.010000000000002,8.198014795194153,10,0
+c3,naive_vs_no_guidance,M1 verification latency,s,lower,-10.150000000000002,2.7847361774103065,10,0
+c3,naive_vs_no_guidance,M2 precision,%,higher,0.0,0.0,10,0
+c3,naive_vs_no_guidance,M2 recall (detectable),%,higher,0.0,0.0,10,0
+c3,naive_vs_no_guidance,M2 recall (reported),%,higher,0.0,0.0,10,0
+c3,naive_vs_no_guidance,M2 false dispatches,per run,lower,0.0,0.0,10,0
+c3,naive_vs_no_guidance,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c3,naive_vs_no_guidance,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c3,naive_vs_no_guidance,M3 time to CPR,s,lower,22.28,67.99794485338836,10,6
+c3,naive_vs_no_guidance,M3 CPR started by a bystander,%,higher,0.0,0.0,10,0
+c3,naive_vs_no_guidance,M4 time to AED,s,lower,196.44000000000003,389.6349123888155,5,4
+c3,naive_vs_no_guidance,M5 time to EMS,s,lower,-10.979999999999979,3.151563494873957,10,0
+c3,naive_vs_no_guidance,M6 survival proxy,%,higher,-3.13625,3.4053754955007736,8,6
+c3,naive_vs_no_guidance,M7 volunteer before EMS,%,higher,-25.27,17.174977352597068,10,7
+c3,naive_vs_no_guidance,M7 AED before EMS,%,higher,-24.04,26.10393376877217,10,7
+c3,naive_vs_no_guidance,M8 messages per candidate,msgs,lower,-62.379999999999995,7.817030406320121,10,0
+c3,naive_vs_no_guidance,"M8 all messages, heartbeats included",msgs per run,lower,-453.9,132.8130939679267,10,0
+c3,naive_vs_no_guidance,"M8 background messages (P23, P25, P27)",msgs per run,lower,-4.1,48.350210391361145,10,7
+c3,naive_vs_no_guidance,M9 gap to oracle B0 from the collapse,s,lower,30.329999999999995,71.01692192613123,10,7
+c3,naive_vs_no_guidance,M9 gap to oracle B0 from the declaration,s,lower,33.959999999999994,72.7280282335344,10,7
+c3,naive_vs_no_guidance,M10 alerts per volunteer,alerts,lower,1.275,0.3591946736180193,10,10
+c3,naive_vs_no_guidance,M10 Jain index of tasks,0-1,higher,0.13209999999999997,0.09933633409561451,10,1
+c3,naive_vs_no_guidance,M10 minutes on false alarms,min,lower,0.0,0.0,10,0
+c3,naive_vs_no_guidance,M11 location recipients per case,agents,lower,0.271,0.8650973124709408,10,7
+c3,naive_vs_no_guidance,M12 recovery after hub crash,s,lower,,,0,0
+c3,naive_vs_no_guidance,"M13 time to CPR, central cells",s,lower,9.07999999999999,82.80982392242011,10,5
+c3,naive_vs_no_guidance,"M13 time to CPR, peripheral cells",s,lower,188.3,,1,1
+c3,naive_vs_no_guidance,Rule violations,count,lower,0.0,0.0,10,0
+c4,naive,M1 verification latency,s,lower,-13.61,7.702917138908407,10,0
 c4,naive,M2 precision,%,higher,0.0,0.0,10,0
 c4,naive,M2 recall (detectable),%,higher,0.0,0.0,10,0
 c4,naive,M2 recall (reported),%,higher,0.0,0.0,10,0
 c4,naive,M2 false dispatches,per run,lower,0.0,0.0,10,0
-c4,naive,M3 time to CPR,s,lower,275.65999999999997,103.12605161055193,10,9
-c4,naive,M3 CPR started by a bystander,%,higher,-56.669999999999995,27.04852853578381,10,8
-c4,naive,M4 time to AED,s,lower,301.425,511.68498111069283,4,4
-c4,naive,M5 time to EMS,s,lower,-47.169999999999995,107.7956091117506,10,4
-c4,naive,M6 survival proxy,%,higher,-9.046000000000001,7.132380973672115,10,9
-c4,naive,M7 volunteer before EMS,%,higher,-6.33,37.55969284982683,10,4
-c4,naive,M7 AED before EMS,%,higher,-32.339999999999996,27.973959911635276,10,6
-c4,naive,M8 messages per candidate,msgs,lower,-50.26,15.623167118950835,10,0
-c4,naive,M9 gap to oracle B0,s,lower,-23.777777777777786,189.9076094291935,9,3
-c4,naive,M10 alerts per volunteer,alerts,lower,0.4790000000000001,0.5109627375411592,10,8
+c4,naive,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c4,naive,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c4,naive,M3 time to CPR,s,lower,258.5,91.28054465903453,9,9
+c4,naive,M3 CPR started by a bystander,%,higher,-66.67777777777776,24.85164645171646,9,8
+c4,naive,M4 time to AED,s,lower,115.42499999999998,293.8531755762562,4,2
+c4,naive,M5 time to EMS,s,lower,62.44444444444443,155.56022600891416,9,3
+c4,naive,M6 survival proxy,%,higher,-7.016,4.737396069835081,10,9
+c4,naive,M7 volunteer before EMS,%,higher,-20.830000000000002,23.697094783866554,10,4
+c4,naive,M7 AED before EMS,%,higher,-31.170000000000005,30.165108188766702,10,6
+c4,naive,M8 messages per candidate,msgs,lower,-36.44,11.480523181264676,10,0
+c4,naive,"M8 all messages, heartbeats included",msgs per run,lower,-67.3,85.21065856387267,10,3
+c4,naive,"M8 background messages (P23, P25, P27)",msgs per run,lower,52.2,38.90410560453599,10,9
+c4,naive,M9 gap to oracle B0 from the collapse,s,lower,44.82222222222223,55.24485427269323,9,6
+c4,naive,M9 gap to oracle B0 from the declaration,s,lower,50.72222222222221,49.42075677143271,9,7
+c4,naive,M10 alerts per volunteer,alerts,lower,1.167,0.52054243114488,10,10
+c4,naive,M10 Jain index of tasks,0-1,higher,0.11960000000000001,0.11531966037642205,10,3
 c4,naive,M10 minutes on false alarms,min,lower,0.0,0.0,10,0
-c4,naive,M11 location recipients per case,agents,lower,-0.5569999999999999,0.6751989286787181,10,2
-c4,naive,M12 recovery after hub crash,s,lower,-0.2799999999999997,1.1403983787353527,10,4
-c4,naive,Rule violations,count,lower,-0.1,0.22599999999999998,10,0
-c4,no_guidance,M1 verification latency,s,lower,-0.45,12.29994027537442,10,4
+c4,naive,M11 location recipients per case,agents,lower,-0.07199999999999998,0.4896759383737598,10,4
+c4,naive,M12 recovery after hub crash,s,lower,1.0600000000000005,2.392755543998035,10,7
+c4,naive,"M13 time to CPR, central cells",s,lower,153.00000000000003,190.56560354376649,5,4
+c4,naive,"M13 time to CPR, peripheral cells",s,lower,279.51111111111106,110.60772901351777,9,9
+c4,naive,Rule violations,count,lower,0.3,0.34522070235333985,10,3
+c4,no_guidance,M1 verification latency,s,lower,-1.7099999999999995,8.843790027408433,10,5
 c4,no_guidance,M2 precision,%,higher,0.0,0.0,10,0
 c4,no_guidance,M2 recall (detectable),%,higher,0.0,0.0,10,0
 c4,no_guidance,M2 recall (reported),%,higher,0.0,0.0,10,0
 c4,no_guidance,M2 false dispatches,per run,lower,0.0,0.0,10,0
-c4,no_guidance,M3 time to CPR,s,lower,196.53,120.05416512611667,10,9
-c4,no_guidance,M3 CPR started by a bystander,%,higher,-56.669999999999995,27.04852853578381,10,8
-c4,no_guidance,M4 time to AED,s,lower,3.316666666666672,92.63993689815665,6,2
-c4,no_guidance,M5 time to EMS,s,lower,-47.62000000000002,78.80431862458074,10,5
-c4,no_guidance,M6 survival proxy,%,higher,-6.900999999999999,7.33968104744795,10,8
-c4,no_guidance,M7 volunteer before EMS,%,higher,9.5,26.764545578059046,10,1
-c4,no_guidance,M7 AED before EMS,%,higher,-1.6700000000000004,29.01164913685535,10,2
-c4,no_guidance,M8 messages per candidate,msgs,lower,-5.43,7.828075849572908,10,3
-c4,no_guidance,M9 gap to oracle B0,s,lower,-116.66999999999999,186.34375749218606,10,2
-c4,no_guidance,M10 alerts per volunteer,alerts,lower,-0.08000000000000007,0.23717441121110283,10,4
+c4,no_guidance,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c4,no_guidance,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c4,no_guidance,M3 time to CPR,s,lower,246.75,96.9328566559806,10,9
+c4,no_guidance,M3 CPR started by a bystander,%,higher,-60.010000000000005,26.457629730151147,10,8
+c4,no_guidance,M4 time to AED,s,lower,67.54999999999998,133.2443055245389,6,5
+c4,no_guidance,M5 time to EMS,s,lower,95.43333333333334,199.84074289856412,9,3
+c4,no_guidance,M6 survival proxy,%,higher,-3.2590000000000003,5.987866054914722,10,7
+c4,no_guidance,M7 volunteer before EMS,%,higher,4.0,9.04,10,0
+c4,no_guidance,M7 AED before EMS,%,higher,3.1700000000000004,30.668533085884626,10,1
+c4,no_guidance,M8 messages per candidate,msgs,lower,0.28000000000000114,22.68143426231144,10,6
+c4,no_guidance,"M8 all messages, heartbeats included",msgs per run,lower,219.5,128.01757980839972,10,10
+c4,no_guidance,"M8 background messages (P23, P25, P27)",msgs per run,lower,114.7,41.0895513563566,10,10
+c4,no_guidance,M9 gap to oracle B0 from the collapse,s,lower,10.309999999999997,97.59297377671312,10,5
+c4,no_guidance,M9 gap to oracle B0 from the declaration,s,lower,10.53999999999999,95.0889800956276,10,5
+c4,no_guidance,M10 alerts per volunteer,alerts,lower,0.5740000000000001,0.5774701714663134,10,7
+c4,no_guidance,M10 Jain index of tasks,0-1,higher,0.0678,0.0709380844398832,10,3
 c4,no_guidance,M10 minutes on false alarms,min,lower,0.0,0.0,10,0
-c4,no_guidance,M11 location recipients per case,agents,lower,-0.2799999999999999,0.5082739497554444,10,4
-c4,no_guidance,M12 recovery after hub crash,s,lower,0.4800000000000004,2.0909037748197674,10,6
-c4,no_guidance,Rule violations,count,lower,-0.1,0.4056824154707992,10,1
-c5,naive,M1 verification latency,s,lower,-8.362499999999999,3.07251487849472,8,0
-c5,naive,M2 precision,%,higher,-11.28,7.266820617329454,10,8
-c5,naive,M2 recall (detectable),%,higher,3.7111111111111117,8.572666666666668,9,0
-c5,naive,M2 recall (reported),%,higher,6.25,14.749999999999998,8,0
+c4,no_guidance,M11 location recipients per case,agents,lower,-0.616,0.7239309916774602,10,1
+c4,no_guidance,M12 recovery after hub crash,s,lower,-0.2900000000000006,2.40747465753363,10,4
+c4,no_guidance,"M13 time to CPR, central cells",s,lower,194.76666666666665,310.356379969723,6,4
+c4,no_guidance,"M13 time to CPR, peripheral cells",s,lower,347.3777777777778,169.97219266283264,9,9
+c4,no_guidance,Rule violations,count,lower,0.6,0.49970480174688015,10,5
+c4,naive_vs_no_guidance,M1 verification latency,s,lower,-11.900000000000002,4.624141395377571,10,0
+c4,naive_vs_no_guidance,M2 precision,%,higher,0.0,0.0,10,0
+c4,naive_vs_no_guidance,M2 recall (detectable),%,higher,0.0,0.0,10,0
+c4,naive_vs_no_guidance,M2 recall (reported),%,higher,0.0,0.0,10,0
+c4,naive_vs_no_guidance,M2 false dispatches,per run,lower,0.0,0.0,10,0
+c4,naive_vs_no_guidance,M2 false dispatches with a witness,per run,lower,0.0,0.0,10,0
+c4,naive_vs_no_guidance,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c4,naive_vs_no_guidance,M3 time to CPR,s,lower,-17.633333333333326,116.57501837336333,9,3
+c4,naive_vs_no_guidance,M3 CPR started by a bystander,%,higher,0.0,0.0,9,0
+c4,naive_vs_no_guidance,M4 time to AED,s,lower,18.450000000000017,158.00741832901394,4,2
+c4,naive_vs_no_guidance,M5 time to EMS,s,lower,-31.79000000000001,195.73281574796457,10,3
+c4,naive_vs_no_guidance,M6 survival proxy,%,higher,-3.7569999999999992,3.5827555222140886,10,7
+c4,naive_vs_no_guidance,M7 volunteer before EMS,%,higher,-24.830000000000002,23.42442848054142,10,5
+c4,naive_vs_no_guidance,M7 AED before EMS,%,higher,-34.339999999999996,30.760735569589716,10,6
+c4,naive_vs_no_guidance,M8 messages per candidate,msgs,lower,-36.72,20.55310374658236,10,1
+c4,naive_vs_no_guidance,"M8 all messages, heartbeats included",msgs per run,lower,-286.8,166.6062026376369,10,0
+c4,naive_vs_no_guidance,"M8 background messages (P23, P25, P27)",msgs per run,lower,-62.5,31.863862812492354,10,2
+c4,naive_vs_no_guidance,M9 gap to oracle B0 from the collapse,s,lower,31.36666666666668,142.0956506230926,9,5
+c4,naive_vs_no_guidance,M9 gap to oracle B0 from the declaration,s,lower,39.111111111111114,140.6761416802003,9,5
+c4,naive_vs_no_guidance,M10 alerts per volunteer,alerts,lower,0.5930000000000001,0.5709754814350613,10,7
+c4,naive_vs_no_guidance,M10 Jain index of tasks,0-1,higher,0.05180000000000001,0.1055375637897079,10,4
+c4,naive_vs_no_guidance,M10 minutes on false alarms,min,lower,0.0,0.0,10,0
+c4,naive_vs_no_guidance,M11 location recipients per case,agents,lower,0.544,0.7050105328133599,10,6
+c4,naive_vs_no_guidance,M12 recovery after hub crash,s,lower,1.350000000000001,3.35064002178025,10,6
+c4,naive_vs_no_guidance,"M13 time to CPR, central cells",s,lower,-84.25999999999998,269.7429372870399,5,3
+c4,naive_vs_no_guidance,"M13 time to CPR, peripheral cells",s,lower,-67.86666666666666,139.30939186303988,9,1
+c4,naive_vs_no_guidance,Rule violations,count,lower,-0.3,0.5883721422516345,10,1
+c5,naive,M1 verification latency,s,lower,-9.312500000000002,3.941582926222118,8,0
+c5,naive,M2 precision,%,higher,-12.95,8.167623879957036,10,8
+c5,naive,M2 recall (detectable),%,higher,0.0,0.0,9,0
+c5,naive,M2 recall (reported),%,higher,0.0,0.0,8,0
 c5,naive,M2 false dispatches,per run,lower,4.1,1.235558533169873,10,10
-c5,naive,M3 time to CPR,s,lower,245.425,106.6520970082164,4,4
-c5,naive,M3 CPR started by a bystander,%,higher,-100.0,0.0,4,4
-c5,naive,M4 time to AED,s,lower,-51.30000000000001,,1,0
-c5,naive,M5 time to EMS,s,lower,9.087500000000013,33.814138893473874,8,2
-c5,naive,M6 survival proxy,%,higher,-9.332857142857145,4.35292651557547,7,6
-c5,naive,M7 volunteer before EMS,%,higher,-11.11111111111111,60.193668917734016,9,3
-c5,naive,M7 AED before EMS,%,higher,-5.555555555555555,12.833333333333336,9,1
-c5,naive,M8 messages per candidate,msgs,lower,0.3600000000000009,11.568178424934112,10,3
-c5,naive,M9 gap to oracle B0,s,lower,94.4,770.2260000000001,2,2
-c5,naive,M10 alerts per volunteer,alerts,lower,3.193,0.501270173725374,10,10
-c5,naive,M10 minutes on false alarms,min,lower,81.83,12.867367771744668,10,10
-c5,naive,M11 location recipients per case,agents,lower,0.9209999999999999,0.5016594808344711,10,8
+c5,naive,M2 false dispatches with a witness,per run,lower,4.1,1.235558533169873,10,10
+c5,naive,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c5,naive,M3 time to CPR,s,lower,196.9,132.77458696452416,5,5
+c5,naive,M3 CPR started by a bystander,%,higher,-80.0,55.6,5,4
+c5,naive,M4 time to AED,s,lower,,,0,0
+c5,naive,M5 time to EMS,s,lower,4.125,34.24282945377032,8,1
+c5,naive,M6 survival proxy,%,higher,-8.791428571428572,4.326461073055746,7,6
+c5,naive,M7 volunteer before EMS,%,higher,-7.41111111111111,61.2468140949207,9,3
+c5,naive,M7 AED before EMS,%,higher,-16.666666666666668,27.223611075682083,9,2
+c5,naive,M8 messages per candidate,msgs,lower,-1.0299999999999998,10.901181055076352,10,3
+c5,naive,"M8 all messages, heartbeats included",msgs per run,lower,12.9,149.34420561761192,10,5
+c5,naive,"M8 background messages (P23, P25, P27)",msgs per run,lower,41.2,99.11805662160877,10,7
+c5,naive,M9 gap to oracle B0 from the collapse,s,lower,66.4,194.10789327931346,3,3
+c5,naive,M9 gap to oracle B0 from the declaration,s,lower,79.2,196.87661643780856,3,3
+c5,naive,M10 alerts per volunteer,alerts,lower,3.153,0.4701192344737899,10,10
+c5,naive,M10 Jain index of tasks,0-1,higher,0.28670000000000007,0.07885500248768831,10,0
+c5,naive,M10 minutes on false alarms,min,lower,82.94999999999999,13.30482429547017,10,10
+c5,naive,M11 location recipients per case,agents,lower,1.0000000000000002,0.4740496279692429,10,9
 c5,naive,M12 recovery after hub crash,s,lower,,,0,0
+c5,naive,"M13 time to CPR, central cells",s,lower,277.5,810.8980000000003,2,2
+c5,naive,"M13 time to CPR, peripheral cells",s,lower,140.13333333333333,210.8903913042139,3,3
 c5,naive,Rule violations,count,lower,0.0,0.0,10,0
-c5,no_reputation,M1 verification latency,s,lower,0.8999999999999999,1.6012511179877882,8,5
-c5,no_reputation,M2 precision,%,higher,-10.540000000000001,7.282532207961733,10,8
-c5,no_reputation,M2 recall (detectable),%,higher,3.7111111111111117,8.572666666666668,9,0
-c5,no_reputation,M2 recall (reported),%,higher,6.25,14.749999999999998,8,0
-c5,no_reputation,M2 false dispatches,per run,lower,3.5,1.315640106141831,10,10
-c5,no_reputation,M3 time to CPR,s,lower,8.171428571428573,19.374684083445942,7,3
+c5,no_reputation,M1 verification latency,s,lower,-0.1749999999999996,1.2549517349853974,8,4
+c5,no_reputation,M2 precision,%,higher,-12.47,8.355893055270101,10,8
+c5,no_reputation,M2 recall (detectable),%,higher,0.0,0.0,9,0
+c5,no_reputation,M2 recall (reported),%,higher,0.0,0.0,8,0
+c5,no_reputation,M2 false dispatches,per run,lower,3.9,1.407342807484295,10,10
+c5,no_reputation,M2 false dispatches with a witness,per run,lower,3.9,1.407342807484295,10,10
+c5,no_reputation,M2 false dispatches from sensors only,per run,lower,0.0,0.0,10,0
+c5,no_reputation,M3 time to CPR,s,lower,-0.3428571428571396,36.768112203375345,7,3
 c5,no_reputation,M3 CPR started by a bystander,%,higher,0.0,0.0,7,0
-c5,no_reputation,M4 time to AED,s,lower,-0.6499999999999915,6.990499999999964,2,0
-c5,no_reputation,M5 time to EMS,s,lower,18.85,34.075187185315436,8,3
-c5,no_reputation,M6 survival proxy,%,higher,0.015714285714285632,0.029213296059615375,7,2
-c5,no_reputation,M7 volunteer before EMS,%,higher,11.11111111111111,25.66666666666667,9,0
+c5,no_reputation,M4 time to AED,s,lower,0.05000000000001137,23.51350000000029,2,1
+c5,no_reputation,M5 time to EMS,s,lower,13.774999999999999,33.05600288471499,8,5
+c5,no_reputation,M6 survival proxy,%,higher,-0.3457142857142849,1.0318136136596248,7,2
+c5,no_reputation,M7 volunteer before EMS,%,higher,0.0,0.0,9,0
 c5,no_reputation,M7 AED before EMS,%,higher,11.11111111111111,25.66666666666667,9,0
-c5,no_reputation,M8 messages per candidate,msgs,lower,27.860000000000003,7.578488402782647,10,10
-c5,no_reputation,M9 gap to oracle B0,s,lower,11.0,31.27753278633082,5,2
-c5,no_reputation,M10 alerts per volunteer,alerts,lower,1.3030000000000002,0.4179343695951422,10,10
-c5,no_reputation,M10 minutes on false alarms,min,lower,24.130000000000003,14.65275163070442,10,10
-c5,no_reputation,M11 location recipients per case,agents,lower,-0.13800000000000012,0.16428194788229172,10,2
+c5,no_reputation,M8 messages per candidate,msgs,lower,29.9,8.186068164876225,10,10
+c5,no_reputation,"M8 all messages, heartbeats included",msgs per run,lower,219.7,120.67734584235582,10,9
+c5,no_reputation,"M8 background messages (P23, P25, P27)",msgs per run,lower,-45.5,42.8119406240829,10,4
+c5,no_reputation,M9 gap to oracle B0 from the collapse,s,lower,-13.219999999999999,36.0078581112512,5,2
+c5,no_reputation,M9 gap to oracle B0 from the declaration,s,lower,-13.440000000000001,35.839214001425866,5,1
+c5,no_reputation,M10 alerts per volunteer,alerts,lower,1.3969999999999998,0.43292815462460577,10,10
+c5,no_reputation,M10 Jain index of tasks,0-1,higher,0.0377,0.05975415116774547,10,3
+c5,no_reputation,M10 minutes on false alarms,min,lower,24.089999999999996,14.705578013650312,10,9
+c5,no_reputation,M11 location recipients per case,agents,lower,-0.15199999999999997,0.231992421715308,10,4
 c5,no_reputation,M12 recovery after hub crash,s,lower,,,0,0
+c5,no_reputation,"M13 time to CPR, central cells",s,lower,-2.1499999999999986,20.971499999999985,2,0
+c5,no_reputation,"M13 time to CPR, peripheral cells",s,lower,0.3166666666666676,45.601988880907854,6,3
 c5,no_reputation,Rule violations,count,lower,0.0,0.0,10,0
