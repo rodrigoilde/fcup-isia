@@ -25,9 +25,11 @@ cases with a Contract Net, keep reputation, and take over each other's cases whe
 >   - M9 is also measured from the declaration;
 >   - M12 has message-loss variants;
 >   - the analysis separates the effect of guidance from that of coordination.
-> - Next: the final experiment matrix on the commit tagged `matrix-final`, then the performance report
->   and the slides. The numbers now in `results/` come from commit `67a012b` and are superseded by that
->   matrix.
+> - An undecodable message is answered with FIPA `not-understood`.
+> - The final matrix ran on the commit tagged `matrix-final`: 210 valid runs, all at code commit
+>   `de13290`. The numbers in `results/` come from it. `results/evolution.md` compares it with the earlier
+>   matrices (docs/03 §7.1), and `results/demo/` keeps one run for the dashboard replay.
+> - Next: the performance report and the slides.
 
 ## Setup
 
@@ -155,6 +157,14 @@ The page shows:
 - live metrics, the case list and an event feed.
 
 Open `?t=1200&speed=60` to start a replay at a given time.
+
+One run is kept in git for the demo, so it can be shown without XMPP or running a simulation: scenario
+C4, seed 7, from the final matrix. Hub 2 crashes at 1200 s and its successor takes over its two open cases
+in 19.6 s.
+
+```bash
+python -m cemr.viz.server results/demo/c4-ours-s7   # then open http://127.0.0.1:8080/?t=1150&speed=10
+```
 
 ## XMPP server
 

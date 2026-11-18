@@ -1,0 +1,130 @@
+{
+  "incidents": {
+    "P1": 5,
+    "P3": 1,
+    "P2": 1
+  },
+  "undetectable": 1,
+  "false_alarm_events": 1,
+  "false_witness_events": 0,
+  "candidates": 5,
+  "declared": 4,
+  "discarded": 1,
+  "retracted": 0,
+  "closed": {
+    "TRANSPORTED": 3
+  },
+  "M1_verification_latency_s": {
+    "median": 49.8,
+    "p90": 74.4
+  },
+  "M2_verification": {
+    "precision": 100.0,
+    "recall_P1_P2": 66.7,
+    "recall_P1_P2_detectable": 80.0,
+    "recall_P1_P2_reported": 100.0,
+    "false_dispatches": 0,
+    "false_dispatches_witness": 0,
+    "false_dispatches_sensor_only": 0,
+    "false_dispatches_per_100_cases": 0.0
+  },
+  "M2_missed": {
+    "undetectable": 1,
+    "not_reported": 1,
+    "alert_lost": 0,
+    "discarded_low_belief": 0,
+    "discarded_as_p3": 0,
+    "discarded_window": 0,
+    "undecided_at_end": 0,
+    "declared_p3": 0,
+    "retracted": 0,
+    "not_located": 0,
+    "other_incident": 0,
+    "incidents": [
+      {
+        "incident": "I005",
+        "priority": "P1",
+        "reason": "undetectable"
+      },
+      {
+        "incident": "I006",
+        "priority": "P1",
+        "reason": "not_reported"
+      }
+    ]
+  },
+  "M3_time_to_cpr_s": {
+    "median": 140.1,
+    "by_bystander_pct": 66.7
+  },
+  "M4_time_to_aed_s": {
+    "median": 475.5,
+    "first_shock_median": 475.5
+  },
+  "M5_time_to_ems_s": {
+    "median": 945.9
+  },
+  "M6_survival_pct": {
+    "mean": 6.17,
+    "n": 2
+  },
+  "M7_coverage_before_ems_pct": {
+    "volunteer": 75.0,
+    "cpr": 75.0,
+    "aed": 25.0
+  },
+  "M8_messages": {
+    "sent": 15177,
+    "dropped": 112,
+    "background": 14617,
+    "bytes": 993386,
+    "per_candidate": 112.0
+  },
+  "M9_gap_to_oracle_s": {
+    "median": 188.7,
+    "dispatch_median": 169.4,
+    "n": 3
+  },
+  "B0_oracle_s": {
+    "first_responder_s": 210.4,
+    "aed_s": 405.5,
+    "ems_s": 633.3
+  },
+  "M10_volunteer_load": {
+    "alerts_per_volunteer": 2.33,
+    "max_alerts": 5,
+    "tasks_per_volunteer": 0.8,
+    "jain_tasks": 0.436,
+    "false_alarm_minutes": 0.0
+  },
+  "M11_privacy_exposure": {
+    "recipients_per_case": 5.0,
+    "max": 6
+  },
+  "M12_robustness": {
+    "crashes": 1,
+    "recovery_s": 19.6,
+    "orphaned_cases": 0,
+    "drop_rate_pct": 0.7
+  },
+  "M13_equity": {
+    "cpr_central_s": null,
+    "cpr_peripheral_s": 140.1,
+    "volunteer_before_ems_central_pct": null,
+    "volunteer_before_ems_peripheral_pct": 75.0
+  },
+  "errors": 0,
+  "trace_hash": "e9ef322e151be774",
+  "rules": {
+    "violations": 0,
+    "by_rule": {}
+  },
+  "code": {
+    "commit": "de13290a48e40ba4098fa5da95639c68366acece",
+    "dirty": false
+  },
+  "valid": true,
+  "validity_problems": [],
+  "real_seconds": 360.1,
+  "max_loop_stall_s": 0.065
+}

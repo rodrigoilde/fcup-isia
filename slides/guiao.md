@@ -56,4 +56,4 @@ Não fazem parte dos 10 minutos. Servem para responder a perguntas:
 - B5. Missões do voluntário e da ambulância, e o que o hub faz em cada estado
 - B6. Calibração da fusão: os alvos de declaração e descarte que os parâmetros cumprem
 - B7. Os 15 modos de falha da análise e como cada um é tratado
-- B8. Demo: o dashboard mostra células, agentes, mensagens e métricas ao vivo ou em replay
+- B8. Demo: replay do run C4 (seed 7) guardado em `results/demo/c4-ours-s7`, que não precisa de XMPP nem de correr a simulação. Comando: `python -m cemr.viz.server results/demo/c4-ours-s7` e abrir `http://127.0.0.1:8080/?t=1150&speed=10`. O hub2 cai aos 1200 s e o sucessor assume os dois casos dele em 19,6 s. Se o portátil falhar, passa-se o vídeo gravado desse replay.

@@ -1,0 +1,320 @@
+{
+  "run": {
+    "name": "c4_periphery",
+    "duration_s": 3600,
+    "clock_factor": 10,
+    "seed": 7,
+    "start_batch": 10,
+    "start_retries": 4,
+    "max_suspend_s": 2.0,
+    "max_stall_sim_s": 2.0
+  },
+  "city": {
+    "size_m": 3000,
+    "grid_spacing_m": 100,
+    "scene_radius_m": 30
+  },
+  "population": {
+    "devices": 40,
+    "bystanders": 15,
+    "volunteers": 15,
+    "aeds": 10,
+    "aed_min_distance_m": 600,
+    "ems_bases": [
+      [
+        -1500,
+        1500
+      ],
+      [
+        4500,
+        1500
+      ]
+    ]
+  },
+  "incidents": {
+    "rate_per_hour": 3.0,
+    "priority_mix": {
+      "P1": 0.5,
+      "P2": 0.3,
+      "P3": 0.2
+    },
+    "p1_shockable": 0.4,
+    "p_wearer": 0.5,
+    "p_witness": 0.6,
+    "witness_busy_s": 1800,
+    "witness_distance_m": [
+      5,
+      15
+    ],
+    "surge": {}
+  },
+  "sensors": {
+    "tpr": 0.9,
+    "fp_per_device_hour": 0.02,
+    "detection_delay_s": [
+      10,
+      20
+    ],
+    "p_cardiac_flag_on_fp": 0.3,
+    "policy": "adaptive",
+    "drifting_devices": 0,
+    "drift_fp_per_hour": 1.0,
+    "drift_p_cardiac_flag": 0.6,
+    "quality_true": [
+      0.7,
+      1.0
+    ],
+    "quality_false": [
+      0.5,
+      1.0
+    ],
+    "p_immobile_on_fp": 0.5,
+    "drift_p_immobile": 0.8,
+    "drift_p_no_response": 0.0,
+    "event_confidence": {
+      "collapse_cardiac": 0.95,
+      "fall_immobile": 0.8,
+      "fall": 0.5
+    }
+  },
+  "wearer": {
+    "prompt_countdown_s": 30,
+    "p_respond_if_able": 0.9,
+    "response_delay_s": [
+      3,
+      25
+    ]
+  },
+  "witness": {
+    "p_report": 0.8,
+    "report_confidence": 0.8,
+    "scene_memory_s": 900,
+    "report_delay_s": [
+      20,
+      60
+    ],
+    "p_answer": 0.95,
+    "answer_delay_s": [
+      3,
+      10
+    ],
+    "observation_error": 0.1,
+    "p_called_112": 0.5,
+    "react_delay_s": [
+      3,
+      8
+    ],
+    "p_give_up": 0.03,
+    "p_give_up_per_cycle": 0.03,
+    "tired_after_cycles": 3,
+    "t_silence_s": 20,
+    "false_report_per_hour": 0.0,
+    "false_report_radius_m": 200,
+    "pranksters": 0,
+    "prankster_rate_per_hour": 4.0
+  },
+  "volunteers": {
+    "p_accept": 0.7,
+    "eval_delay_s": [
+      3,
+      8
+    ],
+    "modes": {
+      "foot": 0.6,
+      "bike": 0.2,
+      "car": 0.2
+    },
+    "qualification_mix": {
+      "BLS": 0.3,
+      "BLS_AED": 0.6,
+      "HEALTH_PRO": 0.1
+    },
+    "max_alerts_per_hour": 6,
+    "max_consecutive_awards": 3,
+    "award_window_s": 7200,
+    "aed_retrieval_s": 30,
+    "aed_answer_timeout_s": 20,
+    "p_no_show": 0.05,
+    "p_withdraw_if_no_show": 0.5,
+    "withdraw_after_s": [
+      30,
+      120
+    ],
+    "speed_variability": [
+      1.0,
+      1.3
+    ],
+    "max_on_scene_s": 1800
+  },
+  "travel": {
+    "foot": {
+      "speed": 2.0,
+      "overhead_s": 0
+    },
+    "bike": {
+      "speed": 4.5,
+      "overhead_s": 20
+    },
+    "car": {
+      "speed": 8.0,
+      "overhead_s": 60
+    },
+    "ambulance": {
+      "speed": 8.3,
+      "overhead_s": 0
+    }
+  },
+  "ems": {
+    "dispatch_delay_s": 300,
+    "care_on_scene_s": 180,
+    "roster_wait_s": 10,
+    "handover_wait_s": 20,
+    "transport_s": 600,
+    "first_shock_delay_s": 60
+  },
+  "aed": {
+    "restock_s": 1800,
+    "reservation_valid_s": 900,
+    "p_faulty": 0.0,
+    "p_closed": 0.5
+  },
+  "network": {
+    "latency_median_s": 0.3,
+    "latency_sigma": 0.5,
+    "latency_max_s": 5.0,
+    "loss": 0.05,
+    "outages": [
+      {
+        "cell": 5,
+        "from_s": 600,
+        "to_s": 1500
+      },
+      {
+        "cell": 7,
+        "from_s": 1800,
+        "to_s": 2700
+      }
+    ]
+  },
+  "verification": {
+    "prior": 0.15,
+    "tau_declare": {
+      "P1": 0.6,
+      "P2": 0.75,
+      "P3": 0.85
+    },
+    "w_max_s": {
+      "P1": 45,
+      "P2": 75,
+      "P3": 120
+    },
+    "discard_below": 0.03,
+    "retract_below": 0.3,
+    "corroboration_deadline_s": 10,
+    "alert_ack_timeout_s": 10,
+    "alert_hubs_tried": 3,
+    "retry_after_s": 20,
+    "max_retries": 2,
+    "triage_deadline_s": 12,
+    "merge_window_s": 90,
+    "merge_radius_m": 100,
+    "trust_prior": 0.5,
+    "human_reliable_min_trust": 0.4,
+    "likelihood_ratio": {
+      "sensor_alert": 3.0,
+      "wearer_no_response": 10.0,
+      "wearer_ok": 0.05,
+      "witness_report": 6.0,
+      "witness_retracts": 0.2,
+      "corroboration_confirm": 5.0,
+      "corroboration_deny": 0.3,
+      "triage_p1": 10.0,
+      "triage_p2": 6.0
+    }
+  },
+  "dispatch": {
+    "proposal_deadline_s": 12,
+    "ambulance_deadline_s": 8,
+    "location_wait_s": 10,
+    "reservation_timeout_s": 5,
+    "n_max": 4,
+    "n_need": {
+      "P1": 2,
+      "P2": 1
+    },
+    "eta_slack_s": 120,
+    "quality_penalty": 0.5,
+    "trust_exponent": 1.0,
+    "ambulance_retry_s": 30,
+    "case_timeout_s": 3600,
+    "candidate_aeds": 3,
+    "redundancy": {
+      "P1": {
+        "GO_TO_PATIENT": 2,
+        "FETCH_AED": 1
+      },
+      "P2": {
+        "GO_TO_PATIENT": 1
+      },
+      "P3": {}
+    }
+  },
+  "reputation": {
+    "peer_discount": 0.5,
+    "gossip_period_s": 600,
+    "decay_period_s": 600,
+    "decay_factor": 0.98
+  },
+  "failover": {
+    "heartbeat_s": 5,
+    "lease_heartbeats": 3,
+    "takeover_margin_heartbeats": 1
+  },
+  "faults": {
+    "hub_crashes": [
+      {
+        "hub": 2,
+        "at_s": 1200
+      }
+    ]
+  },
+  "privacy": {
+    "retention_s": 600,
+    "max_retention_s": 7200
+  },
+  "metrics": {
+    "match_radius_m": 50,
+    "central_radius_m": 1000,
+    "report_window_s": 120
+  },
+  "registration": {
+    "ring": {
+      "volunteer": 2,
+      "witness": 1,
+      "sensor": 1
+    }
+  },
+  "policy": {
+    "allocation": "contract_net",
+    "reputation": true,
+    "guidance": true
+  },
+  "scripted": {
+    "incidents": [
+      {
+        "id": "F1",
+        "t_s": 900,
+        "priority": "P1",
+        "shockable": true,
+        "wearer": true,
+        "witness": true,
+        "witness_reports": true,
+        "cell": 2
+      }
+    ]
+  },
+  "code": {
+    "commit": "de13290a48e40ba4098fa5da95639c68366acece",
+    "dirty": false
+  }
+}
