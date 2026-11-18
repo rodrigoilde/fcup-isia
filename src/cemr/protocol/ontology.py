@@ -80,6 +80,7 @@ class Performative(StrEnum):
     ACCEPT_PROPOSAL = "accept-proposal"
     REJECT_PROPOSAL = "reject-proposal"
     SUBSCRIBE = "subscribe"
+    NOT_UNDERSTOOD = "not-understood"
 
 
 class Priority(StrEnum):

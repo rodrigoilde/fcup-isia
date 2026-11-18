@@ -1,13 +1,15 @@
 """Testes do ambiente e da infraestrutura: cidade, traço (RNF9), C5, rede, sobrevivência e mensagens."""
 
+import json
 import random
 from dataclasses import MISSING, fields
 
 import pytest
 import spade
+from spade.message import Message
 
 import cemr
-from cemr.agents.base import envelope
+from cemr.agents.base import envelope, not_understood_reply
 from cemr.config import load_config
 from cemr.protocol import messages
 from cemr.protocol.messages_dispatch import CallForProposals
@@ -130,3 +132,21 @@ def test_call_for_proposals_carries_fipa_reply_by():
 
 def test_messages_without_a_deadline_have_no_reply_by():
     assert "reply-by" not in envelope(ReleaseAck("hub1-c1"), "inform", 8)
+
+
+def invalid_message() -> Message:
+    return Message(to="hub1@localhost", sender="vol3@localhost", thread="hub1-c1", body="{not json",
+                   metadata=envelope(ReleaseAck("hub1-c1"), "inform", 4))
+
+
+def test_not_understood_goes_back_to_the_sender_in_the_same_conversation():
+    reply = not_understood_reply(invalid_message(), "JSONDecodeError")
+    assert str(reply.to) == "vol3@localhost"
+    assert reply.thread == "hub1-c1"
+    assert reply.get_metadata("performative") == "not-understood"
+    assert reply.get_metadata("protocol") == ReleaseAck.PROTOCOL.value
+
+
+def test_not_understood_says_why():
+    reply = not_understood_reply(invalid_message(), "JSONDecodeError")
+    assert json.loads(reply.body) == {"reason": "JSONDecodeError"}
