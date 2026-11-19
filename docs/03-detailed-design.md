@@ -575,7 +575,7 @@ and C5 for repeated sources.
 
 | Check | What it covers |
 |---|---|
-| Unit tests (`tests/test_*.py`, 93 tests, `pytest -m "not slow"`) | Fusion and OS4; the priority rule; triage that contradicts the report; alert merging by area and the P26 decision; Contract Net; late awards, uncovered tasks and surplus release (OL6, OL8); unanswered drifting false positives; disclosure; AED custody; reputation with gossip and decay; guidance steps; Larsen; network FIFO; trace reproducibility; the C5 pranksters; payload round trips and the FIPA envelope; the metrics; the rule checker catching injected violations |
+| Unit tests (`tests/test_*.py`, 95 tests, `pytest -m "not slow"`) | Fusion and OS4; the priority rule; triage that contradicts the report; alert merging by area and the P26 decision; Contract Net; late awards, uncovered tasks and surplus release (OL6, OL8); unanswered drifting false positives; disclosure; AED custody; reputation with gossip and decay; guidance steps; Larsen; network FIFO; trace reproducibility; the C5 pranksters; payload round trips, the FIPA envelope and the `not-understood` reply; the metrics; the rule checker catching injected violations |
 | End-to-end tests (`tests/test_end_to_end.py`) | C1: the OL1 sequence, OL2, OL7, OS5, zero rule violations, valid run. C4: the takeover of a crashed hub's case within 40 s, P28 reaching participants, the crashed hub silent, no orphaned cases |
 | Rule checker (`python -m cemr.metrics.check runs/<run>`) | Re-derives OS1–OS6, OS8, OS9, OS11–OS13, OL1–OL3, OL5–OL7, OL9 and DUP (no duplicate cases) from the audit log after every run. It runs inside `run.py` and is reported in `summary.json` |
 | Validity checks (`run.py`) | Discards runs in which the machine slept or the event loop stalled |

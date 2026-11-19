@@ -29,7 +29,8 @@ cases with a Contract Net, keep reputation, and take over each other's cases whe
 > - The final matrix ran on the commit tagged `matrix-final`: 210 valid runs, all at code commit
 >   `de13290`. The numbers in `results/` come from it. `results/evolution.md` compares it with the earlier
 >   matrices (docs/03 §7.1), and `results/demo/` keeps one run for the dashboard replay.
-> - Next: the performance report and the slides.
+> - The performance report is in `report/` (in Portuguese); the slides and the presentation script are
+>   in `slides/`.
 
 ## Setup
 
@@ -195,6 +196,8 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
 | `experiments/` | Matrix runner, overnight script and analysis |
 | `tests/` | Unit tests by topic and end-to-end tests |
 | `spikes/` | Sprint 0 scale spike |
+| `report/` | Performance report (Markdown source and print stylesheet) |
+| `slides/` | Slides and presentation script |
 
 ## Documentation
 
@@ -209,3 +212,7 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
    diagrams, and the schema of every message in `src/cemr/protocol/messages_*.py`.
 5. API documentation from the docstrings (in Portuguese): `pdoc src/cemr -o docs/api`, then open
    `docs/api/index.html`.
+6. [Performance report](report/relatorio-desempenho.md), in Portuguese: method, results per scenario,
+   trade-offs, design evolution and limitations, from the final matrix. To build the PDF:
+   `cd report && pandoc relatorio-desempenho.md -s --embed-resources --css=print.css -o relatorio-desempenho.html`,
+   then print the HTML to PDF (A4) from a browser.
