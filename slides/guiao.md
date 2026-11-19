@@ -2,15 +2,15 @@
 
 Gerado com os slides em `apresentacao.pptx`; o mesmo texto está nas notas do orador.
 Os números vêm da matriz final: 210 runs válidos no commit `de13290` (`results/summary.md`, `results/paired.md`).
-Tempo total previsto: 9 min 50 s (limite: 10 min). Se o ensaio passar do tempo, cortar primeiro a frase sobre Russell e Norvig no slide 5 e a comparação de estruturas no slide 3.
+Tempo total previsto: 9 min 50 s (limite: 10 min). Se o ensaio passar do tempo, cortar primeiro as frases sobre os tipos de agente no slide 5 e a comparação de estruturas no slide 3.
 
 ## Slide 1 · Título (0:20)
 
-Bom dia. Somos [nomes do grupo]. O nosso tópico é a resposta médica de emergência comunitária sem despachante central. Vamos mostrar o problema, como desenhámos o sistema multiagente em SPADE e o que medimos em 210 simulações.
+Bom dia. Somos o Rodrigo Dias e o Francisco Machado. O nosso tópico é a resposta médica de emergência comunitária sem despachante central. Vamos mostrar o problema, como desenhámos o sistema multiagente em SPADE e o que medimos em 210 simulações.
 
 ## Slide 2 · Numa paragem cardíaca, o que conta acontece antes de a ambulância chegar (1:00)
 
-O caso mais exigente é a paragem cardiorrespiratória fora do hospital. Sem RCP nem desfibrilhação, a probabilidade de sobreviver cai 7 a 10 % por minuto. Na nossa simulação, a ambulância chega em média aos 6 minutos e meio na cidade e quase aos 13 na periferia; é esse intervalo que queremos ocupar com voluntários e DAE próximos. Já existem sistemas de voluntários, nos Países Baixos e na Escandinávia, mas com despacho central. O enunciado pede o contrário: nenhum agente vê a cidade toda. Isto dá quatro tarefas, que na análise Gaia são quatro sub-organizações: detetar e verificar, despachar, guiar a testemunha e proteger os dados.
+O caso mais exigente é a paragem cardiorrespiratória fora do hospital. Sem ninguém a intervir, a sobrevivência cai cerca de 5,5 pontos percentuais por minuto, segundo o modelo de Larsen que também usamos na métrica M6. Na nossa simulação, a ambulância chega em média aos 6 minutos e meio na cidade e quase aos 13 na periferia; é esse intervalo que queremos ocupar com voluntários e DAE próximos. Já existem sistemas de voluntários, nos Países Baixos e na Escandinávia, mas com despacho central. O enunciado pede o contrário: nenhum agente vê a cidade toda. Isto dá quatro tarefas, que na análise Gaia são quatro sub-organizações: detetar e verificar, despachar, guiar a testemunha e proteger os dados.
 
 ## Slide 3 · Cada armário de DAE é o hub da sua célula; os hubs coordenam-se como pares (1:15)
 
@@ -18,13 +18,11 @@ Dividimos a cidade em células à volta dos armários de DAE, que são infraestr
 
 ## Slide 4 · Um caso passa por cinco fases, cada uma assente em protocolos FIPA (1:15)
 
-Este é o percurso de um caso P1. O dispositivo ou a testemunha alerta o hub da sua célula (P01). O hub pergunta à vizinhança e faz a triagem à testemunha (P03, P04); quando a evidência chega ao limiar, declara o incidente (P06). Pede a ambulância (P10) e chama voluntários com um Contract Net: cfp, propostas, adjudicação (P08, P09). O voluntário que vai buscar o DAE reserva-o e levanta-o com o token da adjudicação (P11, P12). Todos reportam o estado (P13), a EMS recebe a passagem do caso (P19) e o hub fecha-o e envia o resultado para a reputação (P20, P21). Os 28 protocolos usam padrões FIPA conhecidos e o envelope FIPA-ACL. O thread da mensagem é o id do caso, e um número de sequência torna os reenvios idempotentes.
+Este é o percurso de um caso P1. O dispositivo ou a testemunha alerta o hub da sua célula (P01). O hub pergunta à vizinhança e faz a triagem à testemunha (P03, P04); quando a evidência chega ao limiar, declara o incidente (P06). Pede a ambulância (P10) e chama voluntários com um Contract Net: cfp, propostas, adjudicação (P08, P09). O voluntário que vai buscar o DAE reserva-o e levanta-o com o token da adjudicação (P11, P12). Todos reportam o estado (P13), a EMS recebe a passagem do caso (P19) e o hub fecha-o e envia o resultado para a reputação (P20, P21). Os 28 protocolos usam padrões FIPA conhecidos e o envelope FIPA-ACL. À direita está uma adjudicação P09 real: a metadata da mensagem, com o id do caso como thread, e o corpo em JSON.
 
 ## Slide 5 · O hub declara por fusão bayesiana e reputação; aloca por Contract Net (1:15)
 
-Dentro do hub, cada caso é uma FSMBehaviour do SPADE: verificar, despachar, acompanhar e fechar, ou descartar. A decisão de declarar é uma fusão bayesiana em log-odds, em que cada evidência pesa pela confiança na fonte. Essa confiança vem de um modelo de reputação Beta, partilhado entre hubs vizinhos por gossip. A decisão coletiva é a alocação: um Contract Net em que cada voluntário calcula o seu ETA no telemóvel e o hub ordena as propostas por ETA, qualificação e confiança. Usamos redundância controlada: num P1, dois voluntários para RCP e um para o DAE. Nos tipos de Russell e Norvig, o hub e o voluntário são baseados em utilidade, o dispositivo é reflexo com modelo, a guia da testemunha é reflexo simples e a EMS é baseada em objetivos. Não usamos BDI; tudo são behaviours do SPADE.
-
-[A VALIDAR PELO GRUPO: a classificação de Russell e Norvig é uma proposta e ainda não está escrita nas docstrings dos agentes.]
+Dentro do hub, cada caso é uma FSMBehaviour do SPADE: verificar, despachar, acompanhar e fechar, ou descartar. A decisão de declarar é uma fusão bayesiana em log-odds, em que cada evidência pesa pela confiança na fonte. Essa confiança vem de um modelo de reputação Beta, partilhado entre hubs vizinhos por gossip. A decisão coletiva é a alocação: um Contract Net em que cada voluntário calcula o seu ETA no telemóvel e o hub ordena as propostas por ETA, qualificação e confiança. Usamos redundância controlada: num P1, dois voluntários para RCP e um para o DAE. O hub é um agente híbrido em camadas: a camada reativa trata do router, do DAE e dos heartbeats, e a deliberativa decide cada caso. O voluntário e a EMS são baseados em utilidade e o dispositivo é reflexo com modelo. Não usamos BDI; tudo são behaviours do SPADE.
 
 ## Slide 6 · Registo por célula, privacidade e recuperação de falhas completam o sistema (1:15)
 
@@ -40,7 +38,7 @@ O resultado principal é o tempo até à RCP. Nos cinco cenários, o nosso siste
 
 ## Slide 9 · O ganho tem custos: verificar atrasa, há mais mensagens e k = 3 expõe mais a localização (1:00)
 
-Este ganho tem custos. Verificar antes de enviar atrasa a declaração 7 a 14 segundos face a B1, e o Contract Net troca até mais 49 % de mensagens por candidato. Em troca, cada voluntário recebe menos alertas. Com ruído, a precisão fica igual à de B1, mas os falsos despachos caem para metade. AlertFirst e ConfirmFirst dão a mesma precisão, e AlertFirst é mais rápido e mais barato. Com fontes adversárias, a reputação corta os falsos despachos para menos de metade. Em C3, k = 3 aproxima-nos do oráculo, mas o intervalo inclui zero, e a localização chega a quase o dobro dos agentes. Em C4, o sucessor assume os casos do hub que caiu em cerca de 21 segundos, sem casos órfãos.
+Este ganho tem custos. Verificar antes de enviar atrasa a declaração 7 a 14 segundos face a B1, e o Contract Net troca até mais 49 % de mensagens por candidato. Em troca, cada voluntário recebe menos alertas. Com ruído, a precisão fica igual à de B1, mas os falsos despachos caem para metade. AlertFirst e ConfirmFirst dão a mesma precisão, e AlertFirst gasta menos mensagens; a diferença de latência fica dentro do intervalo de confiança. Com fontes adversárias, a reputação corta os falsos despachos para menos de metade. Em C3, k = 3 aproxima-nos do oráculo, mas o intervalo inclui zero, e a localização chega a quase o dobro dos agentes. Em C4, o sucessor assume os casos do hub que caiu em cerca de 21 segundos, sem casos órfãos.
 
 ## Slide 10 · A guia da testemunha leva a RCP mais cedo ao doente; a reputação trava fontes adversárias (0:45)
 
