@@ -2,7 +2,7 @@
 
 Gerado com os slides em `apresentacao.pptx`; o mesmo texto está nas notas do orador.
 Os números vêm da matriz final: 210 runs válidos no commit `de13290` (`results/summary.md`, `results/paired.md`).
-Tempo total previsto: 9 min 50 s (limite: 10 min). Se o ensaio passar do tempo, cortar primeiro as frases sobre os tipos de agente no slide 5 e a comparação de estruturas no slide 3.
+Tempo total previsto: 9 min 10 s (limite: 10 min). Se o ensaio passar do tempo, cortar primeiro a frase sobre as arquiteturas no slide 3 e a das regras por construção no mesmo slide.
 
 ## Slide 1 · Título (0:20)
 
@@ -12,9 +12,9 @@ Bom dia. Somos o Rodrigo Dias e o Francisco Machado. O nosso tópico é a respos
 
 O caso mais exigente é a paragem cardiorrespiratória fora do hospital. Sem ninguém a intervir, a sobrevivência cai cerca de 5,5 pontos percentuais por minuto, segundo o modelo de Larsen que também usamos na métrica M6. Na nossa simulação, a ambulância chega em média aos 6 minutos e meio na cidade e quase aos 13 na periferia; é esse intervalo que queremos ocupar com voluntários e DAE próximos. Já existem sistemas de voluntários, nos Países Baixos e na Escandinávia, mas com despacho central. O enunciado pede o contrário: nenhum agente vê a cidade toda. Isto dá quatro tarefas, que na análise Gaia são quatro sub-organizações: detetar e verificar, despachar, guiar a testemunha e proteger os dados.
 
-## Slide 3 · Cada armário de DAE é o hub da sua célula; os hubs coordenam-se como pares (1:15)
+## Slide 3 · Cada armário de DAE é o hub da sua célula; os hubs coordenam-se como pares (1:00)
 
-Dividimos a cidade em células à volta dos armários de DAE, que são infraestrutura fixa, com energia e rede. Cada armário é o hub da sua célula: verifica alertas, coordena o caso, guarda o DAE e mantém a reputação das fontes. Os hubs vizinhos são pares e nenhum está acima dos outros. Os restantes agentes vivem nos telemóveis e na ambulância: o dispositivo do cidadão com o sensor, a testemunha, o voluntário e a EMS. Escolhemos esta estrutura porque três regras da análise passam a valer por construção: um só dono por caso (OS1), quem alerta não verifica (OS7) e só coordenam agentes provisionados (OS13). Comparámos com um coletivo de pares e com um coordenador efémero por caso; as duas alternativas precisavam de consenso ou de eleição em cada caso.
+Dividimos a cidade em células à volta dos armários de DAE, que são infraestrutura fixa, com energia e rede. Cada armário é o hub da sua célula: verifica alertas, coordena o caso, guarda o DAE e mantém a reputação das fontes. Os hubs vizinhos são pares e nenhum está acima dos outros. Os restantes agentes vivem nos telemóveis e na ambulância. O hub é um agente híbrido em camadas; o voluntário e a ambulância são agentes baseados em utilidade, e o dispositivo é um agente reflexo com modelo. Com esta estrutura, três regras da análise valem por construção: um só dono por caso, quem alerta não verifica, e só coordenam agentes provisionados.
 
 ## Slide 4 · Um caso passa por cinco fases, cada uma assente em protocolos FIPA (1:15)
 
@@ -22,11 +22,11 @@ Este é o percurso de um caso P1. O dispositivo ou a testemunha alerta o hub da 
 
 ## Slide 5 · O hub declara por fusão bayesiana e reputação; aloca por Contract Net (1:15)
 
-Dentro do hub, cada caso é uma FSMBehaviour do SPADE: verificar, despachar, acompanhar e fechar, ou descartar. A decisão de declarar é uma fusão bayesiana em log-odds, em que cada evidência pesa pela confiança na fonte. Essa confiança vem de um modelo de reputação Beta, partilhado entre hubs vizinhos por gossip. A decisão coletiva é a alocação: um Contract Net em que cada voluntário calcula o seu ETA no telemóvel e o hub ordena as propostas por ETA, qualificação e confiança. Usamos redundância controlada: num P1, dois voluntários para RCP e um para o DAE. O hub é um agente híbrido em camadas: a camada reativa trata do router, do DAE e dos heartbeats, e a deliberativa decide cada caso. O voluntário e a EMS são baseados em utilidade e o dispositivo é reflexo com modelo. Não usamos BDI; tudo são behaviours do SPADE.
+Dentro do hub, cada caso é uma FSMBehaviour do SPADE: verificar, despachar, acompanhar e fechar, ou descartar. A decisão individual é declarar ou não: uma fusão bayesiana em log-odds, em que cada evidência pesa pela confiança na fonte, dada por um modelo de reputação Beta partilhado entre hubs. A decisão coletiva tem duas partes. A alocação é um Contract Net, que funciona como um leilão reverso selado: o lance é o ETA calculado no telemóvel do voluntário e ganha a menor pontuação. Não é um Vickrey, porque não há pagamentos; quem declara um ETA falso perde reputação. A outra parte é a prioridade do caso quando as fontes discordam. Na tabela, três fontes dizem P3 e uma diz P1: pluralidade, Borda e Condorcet dão P3, e nós escolhemos P1. Perdemos o critério de Condorcet de propósito, porque tratar uma paragem como um caso leve custa muito mais do que o contrário.
 
-## Slide 6 · Registo por célula, privacidade e recuperação de falhas completam o sistema (1:15)
+## Slide 6 · Registo por célula, privacidade e recuperação de falhas completam o sistema (0:50)
 
-Quatro mecanismos completam o sistema. A descoberta funciona como páginas amarelas por célula: voluntários e testemunhas subscrevem os hubs próximos e dizem só a célula, nunca a posição. A localização exata fica no telemóvel do titular e só sai, a pedido do coordenador, dentro da adjudicação; os dados clínicos só vão para a EMS e tudo é purgado depois do fecho. Para a falha de um hub, o dono replica cada caso para um sucessor fixo e envia heartbeats; sem heartbeat, o sucessor assume o caso. Por fim, o ambiente simulado injeta latência, perdas e zonas sem rede, e um verificador relê o audit log de cada run e confirma as regras organizacionais.
+Quatro mecanismos completam o sistema. A descoberta funciona como páginas amarelas por célula: voluntários e testemunhas subscrevem os hubs próximos e dizem só a célula. A localização exata fica no telemóvel e só sai, a pedido, para quem foi adjudicado; os dados clínicos só vão para a EMS. Se um hub falha, o sucessor, que tem uma réplica de cada caso, assume quando deixam de chegar heartbeats. Por fim, o ambiente injeta latência, perdas e zonas sem rede, e um verificador relê o audit log de cada run e confirma as regras organizacionais.
 
 ## Slide 7 · Avaliámos 21 configurações em 5 cenários contrastantes, com 10 seeds cada (0:45)
 
