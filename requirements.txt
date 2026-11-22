@@ -4,4 +4,7 @@ numpy==2.4.6
 pandas==3.1.0
 matplotlib==3.11.2
 pytest==9.1.1
-ruff==0.17.4
+ruff==0.17.5
+pdoc==16.0.0
+# Instala o pacote cemr a partir de src/; correr o pip na raiz do repositório.
+-e .
