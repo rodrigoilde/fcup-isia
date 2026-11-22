@@ -29,8 +29,9 @@ cases with a Contract Net, keep reputation, and take over each other's cases whe
 > - The final matrix ran on the commit tagged `matrix-final`: 210 valid runs, all at code commit
 >   `de13290`. The numbers in `results/` come from it. `results/evolution.md` compares it with the earlier
 >   matrices (docs/03 §7.1), and `results/demo/` keeps one run for the dashboard replay.
-> - The performance report is in `report/` (in Portuguese); the slides and the presentation script are
->   in `slides/`.
+> - The performance report is in `report/` (in Portuguese); the slides (`.pptx` and `.pdf`) and the
+>   presentation script are in `slides/`. `README.txt` is a short Portuguese version of this file for the
+>   submission.
 
 ## Setup
 
@@ -39,8 +40,7 @@ SPADE 4.1.4 needs **Python 3.10–3.14**. The macOS system Python (3.9) will not
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-pip install -e ".[dev]"
+pip install -r requirements.txt   # pinned versions, plus the cemr package itself (run it from the repo root)
 pytest -m "not slow"   # unit tests (~2 s)
 pytest                 # plus two end-to-end SPADE runs (~2 min)
 ruff check src experiments tests   # PEP 8 and unused imports (settings in pyproject.toml)
@@ -196,8 +196,8 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
 | `experiments/` | Matrix runner, overnight script and analysis |
 | `tests/` | Unit tests by topic and end-to-end tests |
 | `spikes/` | Sprint 0 scale spike |
-| `report/` | Performance report (Markdown source and print stylesheet) |
-| `slides/` | Slides and presentation script |
+| `report/` | Performance report (LaTeX source `main.tex` with its figures; earlier Markdown version) |
+| `slides/` | Slides (`.pptx` and `.pdf`) and presentation script |
 
 ## Documentation
 
@@ -212,7 +212,7 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
    diagrams, and the schema of every message in `src/cemr/protocol/messages_*.py`.
 5. API documentation from the docstrings (in Portuguese): `pdoc src/cemr -o docs/api`, then open
    `docs/api/index.html`.
-6. [Performance report](report/relatorio-desempenho.md), in Portuguese: method, results per scenario,
-   trade-offs, design evolution and limitations, from the final matrix. To build the PDF:
-   `cd report && pandoc relatorio-desempenho.md -s --embed-resources --css=print.css -o relatorio-desempenho.html`,
-   then print the HTML to PDF (A4) from a browser.
+6. [Performance report](report/main.tex), in Portuguese: method, results per scenario, trade-offs,
+   design evolution and limitations, from the final matrix. Build the PDF with `pdflatex main.tex` in
+   `report/` (or on Overleaf; the figures are next to it). `report/relatorio-desempenho.md` is the
+   earlier Markdown version of the same report.
