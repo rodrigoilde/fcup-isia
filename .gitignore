@@ -17,7 +17,6 @@ spikes/out/
 docs/api/
 
 # Ficheiros gerados ao compilar o relatório. Só o PDF final, report/relatorio.pdf, vai para o git.
-report/*.html
 report/*.pdf
 !report/relatorio.pdf
 report/*.aux

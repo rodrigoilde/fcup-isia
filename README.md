@@ -192,7 +192,7 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
 | `experiments/` | Matrix runner, overnight script and analysis |
 | `tests/` | Unit tests by topic and end-to-end tests |
 | `spikes/` | Sprint 0 scale spike |
-| `report/` | Performance report (`relatorio.pdf`; LaTeX source `main.tex` with its figures; earlier Markdown version) |
+| `report/` | Performance report (`relatorio.pdf`; LaTeX source `main.tex` with its figures) |
 | `slides/` | Slides (`.pptx` and `.pdf`) and presentation script |
 
 ## Documentation
@@ -211,4 +211,3 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
 6. [Performance report](report/relatorio.pdf), in Portuguese: method, results per scenario, trade-offs,
    design evolution and limitations, from the final matrix. To rebuild it, run `pdflatex main.tex` or
    `tectonic main.tex` in `report/` (or use Overleaf; the figures are next to it).
-   `report/relatorio-desempenho.md` is the earlier Markdown version of the same report.
