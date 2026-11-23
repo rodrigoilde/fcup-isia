@@ -283,7 +283,7 @@ triage are skipped; the guide can only choose steps from this list.
 | F2 false negative, person alone | — | third OS4 branch (automatic alert + silent wearer) | `verification.os4_branch` |
 | F3 sensor drift | trust of the source falls | trust weight, decay | `reputation`, C2 |
 | F4 wrong or misread human report | incoherent or contradicting triage; EMS finds nobody | re-ask once; reputation; prior trust | `case_verify.recheck_triage`, C2 |
-| F5 lost or late messages | deadlines | re-ask triage (12 s), re-request P24, resend P14, idempotent ids, double closure | `case_verify`, `case_track`, `volunteer_mission` |
+| F5 lost or late messages | deadlines | re-ask triage (12 s), re-request P24, resend P14, idempotent ids, double closure. Not handled: P05 guidance activation is sent once and not resent (known gap, see the report's limitations) | `case_verify`, `case_track`, `volunteer_mission` |
 | F6 hub failure | heartbeats stop | successor takeover (P27/P28); sources fall back to the successor | `hub_failover`, `base.raise_alert`, C4 |
 | F7 volunteer no-show or late | ETA + δ, WITHDRAWN | re-recruitment (OL6), surplus release (OL8) | `case_track.check_progress` |
 | F8 AED missing or locked | `AED_MISSING`, registry state | AED excluded, new FETCH call | `case_awards`, `aed_custody` |
