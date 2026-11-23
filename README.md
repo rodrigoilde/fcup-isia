@@ -12,26 +12,22 @@ This is a SPADE multi-agent system that does three things without a central disp
 The city is split into cells, each served by the hub on its AED cabinet. Hubs verify alerts, coordinate
 cases with a Contract Net, keep reputation, and take over each other's cases when one fails.
 
-> **Status:** final week.
-> - All 28 protocols (P22 is a read inside the hub), scenarios C1–C5, baselines B0/B1, the rule checker,
->   the experiment pipeline and the dashboard work.
-> - Since the first experiment matrix: alerts merge by a 100 m area instead of by cell, duplicate cases
->   across cell borders are resolved by both hubs, scenario C5 (adversarial sources) and a variant
->   without bystander guidance were added, and the code was simplified and documented in Portuguese.
-> - After the audit of 16 Nov:
->   - a witness's triage that contradicts its own report ("responds") is asked again before it lowers the
->     case to P3;
->   - half of the drifting sensors' false positives in C2 go unanswered;
->   - M9 is also measured from the declaration;
->   - M12 has message-loss variants;
->   - the analysis separates the effect of guidance from that of coordination.
-> - An undecodable message is answered with FIPA `not-understood`.
-> - The final matrix ran on the commit tagged `matrix-final`: 210 valid runs, all at code commit
->   `de13290`. The numbers in `results/` come from it. `results/evolution.md` compares it with the earlier
->   matrices (docs/03 §7.1), and `results/demo/` keeps one run for the dashboard replay.
-> - The performance report is in `report/` (in Portuguese); the slides (`.pptx` and `.pdf`) and the
->   presentation script are in `slides/`. `README.txt` is a short Portuguese version of this file for the
->   submission.
+**Group:** Rodrigo Dias (202407281) and Francisco Machado (202403514).
+
+| Deliverable | Where |
+|---|---|
+| Source code and instructions | `src/cemr/`, this file (and `README.txt`, a short Portuguese version) |
+| Design documentation | `docs/`: Gaia analysis, architectural design, detailed design, protocols and message schemas |
+| Code documentation | Docstrings (in Portuguese); HTML with `pdoc src/cemr -o docs/api` |
+| Performance report | `report/relatorio.pdf` (in Portuguese; LaTeX source in `report/main.tex`) |
+| Visualisation and demo | Dashboard (live or replay of `results/demo/c4-ours-s7`) and the video `docs/demo_c4_takeover.mp4` |
+| Slides | `slides/apresentacao.pdf` (and `.pptx`), with the presentation script in `slides/guiao.md` |
+| Tests and experiment scripts | `tests/`, `experiments/` |
+
+All 28 protocols (P22 is a read inside the hub), scenarios C1–C5, baselines B0/B1, the rule checker, the
+experiment pipeline and the dashboard work. The numbers in `results/`, the report and the slides come from
+the final matrix, which ran on the commit tagged `matrix-final`: 210 valid runs, all at code commit
+`de13290`. `results/evolution.md` compares it with the earlier matrices (docs/03 §7.1).
 
 ## Setup
 
@@ -196,7 +192,7 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
 | `experiments/` | Matrix runner, overnight script and analysis |
 | `tests/` | Unit tests by topic and end-to-end tests |
 | `spikes/` | Sprint 0 scale spike |
-| `report/` | Performance report (LaTeX source `main.tex` with its figures; earlier Markdown version) |
+| `report/` | Performance report (`relatorio.pdf`; LaTeX source `main.tex` with its figures) |
 | `slides/` | Slides (`.pptx` and `.pdf`) and presentation script |
 
 ## Documentation
@@ -212,7 +208,6 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
    diagrams, and the schema of every message in `src/cemr/protocol/messages_*.py`.
 5. API documentation from the docstrings (in Portuguese): `pdoc src/cemr -o docs/api`, then open
    `docs/api/index.html`.
-6. [Performance report](report/main.tex), in Portuguese: method, results per scenario, trade-offs,
-   design evolution and limitations, from the final matrix. Build the PDF with `pdflatex main.tex` in
-   `report/` (or on Overleaf; the figures are next to it). `report/relatorio-desempenho.md` is the
-   earlier Markdown version of the same report.
+6. [Performance report](report/relatorio.pdf), in Portuguese: method, results per scenario, trade-offs,
+   design evolution and limitations, from the final matrix. To rebuild it, run `pdflatex main.tex` or
+   `tectonic main.tex` in `report/` (or use Overleaf; the figures are next to it).

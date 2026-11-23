@@ -16,9 +16,12 @@ spikes/out/
 # Documentação HTML gerada pelo pdoc a partir das docstrings
 docs/api/
 
-# Relatório gerado a partir de report/relatorio-desempenho.md (só o .md vai para o git)
-report/*.html
+# Ficheiros gerados ao compilar o relatório. Só o PDF final, report/relatorio.pdf, vai para o git.
 report/*.pdf
+!report/relatorio.pdf
+report/*.aux
+report/*.log
+report/*.out
 
 # Sistema operativo e editores
 .DS_Store

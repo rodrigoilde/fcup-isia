@@ -1,14 +1,14 @@
-# C4 — Degraded periphery (analysis §8.2).
-# Half the volunteers, half the AED cabinets locked at night, intermittent network, distant ambulances, and a
-# hub that crashes while it coordinates a case.
-# Questions: do offline guidance and re-allocation hold the times? How much does recovering a coordinator cost (M12)?
+# C4: periferia degradada (análise §8.2).
+# Metade dos voluntários, metade dos armários de DAE trancados à noite, rede intermitente, ambulâncias longe e um
+# hub que falha enquanto coordena um caso.
+# Perguntas: a guia sem rede e a realocação aguentam os tempos? Quanto custa recuperar um coordenador (M12)?
 
 [run]
 name = "c4_periphery"
 
 [population]
 volunteers = 15
-ems_bases = [[-1500, 1500], [4500, 1500]]   # stations outside the area
+ems_bases = [[-1500, 1500], [4500, 1500]]   # bases fora da área
 
 [ems]
 dispatch_delay_s = 300
@@ -23,8 +23,8 @@ outages = [{ cell = 5, from_s = 600, to_s = 1500 }, { cell = 7, from_s = 1800, t
 [faults]
 hub_crashes = [{ hub = 2, at_s = 1200 }]
 
-# A P1 in the cell of hub 2 shortly before it crashes, so a case is in progress when it fails.
-# Both a wearable and a witness who reports, so that detection does not depend on one random draw.
+# Um P1 na célula do hub 2 pouco antes de este falhar, para haver um caso em curso no momento da falha.
+# Tem um dispositivo e uma testemunha que reporta, para a deteção não depender de um único sorteio.
 [[scripted.incidents]]
 id = "F1"
 t_s = 900

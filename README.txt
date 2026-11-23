@@ -11,7 +11,7 @@ O README.md (em inglês) tem a descrição completa.
 
 1. REQUISITOS
 
-- Python 3.10 a 3.14 (testado com 3.13 no Windows).
+- Python 3.10 a 3.14 (testado com 3.13 no Windows e com 3.11 no macOS).
 - Nada mais: o servidor XMPP vem embutido no SPADE e arranca sozinho.
 
 
@@ -109,5 +109,5 @@ números do relatório e dos slides vêm de results/ (210 runs, commit de13290).
     results/          resultados da matriz final e run da demo
     docs/             análise Gaia, desenho arquitetural, desenho detalhado,
                       protocolos e esquemas das mensagens
-    report/           relatório de desempenho (fonte LaTeX em main.tex)
+    report/           relatório de desempenho (relatorio.pdf; fonte LaTeX em main.tex)
     slides/           apresentação (apresentacao.pdf) e guião (guiao.md)
