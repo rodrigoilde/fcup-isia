@@ -197,8 +197,8 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
 
 ## Documentation
 
-1. [Gaia analysis](docs/01-gaia-analysis.pdf), in Portuguese: requirements, sub-organisations,
-   environment, roles, protocols, organisational rules, metrics, scenarios.
+1. [Gaia analysis](docs/01-gaia-analysis.pdf), in Portuguese (LaTeX source `docs/01-gaia-analysis.tex`):
+   requirements, sub-organisations, environment, roles, protocols, organisational rules, metrics, scenarios.
 2. [Architectural design](docs/02-architectural-design.md): organisational structure (cell hubs),
    decisions D1–D8, completed role and interaction models, rule enforcement.
 3. [Detailed design](docs/03-detailed-design.md): agent and services models, SPADE mapping, decision
@@ -210,4 +210,5 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
    `docs/api/index.html`.
 6. [Performance report](report/relatorio.pdf), in Portuguese: method, results per scenario, trade-offs,
    design evolution and limitations, from the final matrix. To rebuild it, run `pdflatex main.tex` or
-   `tectonic main.tex` in `report/` (or use Overleaf; the figures are next to it).
+   `tectonic main.tex` in `report/` (or use Overleaf; the only figure is drawn with pgfplots, so
+   `main.tex` needs no other files).

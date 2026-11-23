@@ -1,139 +1,99 @@
-# Detailed Design — Agent Model, Services Model and SPADE Mapping
+# Detailed Design
 
 ISIA 2026/27 · Assignment 1 · Topic O · Gaia phase 3 of 3
 
-This phase turns the roles and protocols of the architectural design
-([02-architectural-design.md](02-architectural-design.md)) into concrete agent types and the services
-they offer. It also records how those map onto SPADE, the decision logic inside the agents, the
-behaviour models of the humans in the loop, and how each failure mode is handled. Message formats are
-specified in [04-protocols-and-messages.md](04-protocols-and-messages.md).
+This phase turns the roles and protocols of [02-architectural-design.md](02-architectural-design.md)
+into agent types (agent model) and the services they offer (services model). It also records the SPADE
+mapping, the decision logic, the human behaviour models and how each failure mode is handled. Message
+formats are in [04-protocols-and-messages.md](04-protocols-and-messages.md).
 
 ## 1. Agent model
 
-Gaia's agent model names the agent types, the roles each type plays and how many instances exist.
-Instance counts are those of the base scenario C1 (analysis §8.3). Scenario files change them.
+Instance counts are those of the base scenario C1 (analysis §8.3).
 
-| Agent type (SPADE class) | Roles | Instances (C1) | Runs on |
+| Agent type | Roles | Instances (C1) | Runs on |
 |---|---|---|---|
-| `AEDHubAgent` | IncidentVerifier (R3), IncidentCoordinator (R4), AEDCustodian (R7), ReputationManager (R11) | 1 per AED cabinet (10) | Connected AED cabinet, the hub of its cell |
-| `CitizenDeviceAgent` | SensorMonitor (R1), PrivacyGuardian (R12) of the wearer | 40 | Wearable or phone |
-| `BystanderAgent` | WitnessReporter (R2), BystanderGuide (R9), OnSceneHelper (R10), PrivacyGuardian (R12) of its own location | 15 | Citizen's phone |
-| `VolunteerAgent` | VolunteerResponder (R5), AEDRunner (R6) | 30 | Volunteer's phone |
-| `EMSAgent` | EMSUnit (R8) | 4 | Ambulance |
+| `AEDHubAgent` | R3 IncidentVerifier, R4 IncidentCoordinator, R7 AEDCustodian, R11 ReputationManager | 10 | AED cabinet, hub of its cell |
+| `CitizenDeviceAgent` | R1 SensorMonitor, R12 PrivacyGuardian of the wearer | 40 | Wearable or phone |
+| `BystanderAgent` | R2 WitnessReporter, R9 BystanderGuide, R10 OnSceneHelper, R12 of its own location | 15 | Citizen's phone |
+| `VolunteerAgent` | R5 VolunteerResponder, R6 AEDRunner | 30 | Volunteer's phone |
+| `EMSAgent` | R8 EMSUnit | 4 | Ambulance |
 
-Each role is played by exactly one agent type. The analysis grouped roles by sub-organisation; the
-grouping into agents follows **where the data lives**:
+Roles are grouped by where their data lives. The hub roles share the case record, the registry and
+the trust table, so the P06 hand-over never crosses the network and ownership stays exclusive (OS1).
+The PrivacyGuardian runs on the data subject's own device. The guide and the helper share the
+witness's phone, so guidance works without network. One volunteer agent plays R5 or R6, so OS2 is a
+property of a single agent.
 
-- **Hub roles share one agent** because they share the case record (`incidentCase`), the registry and
-  the trust table. The verifier → coordinator hand-over (P06) then never crosses the network, which
-  keeps ownership exclusive (OS1) without extra messages.
-- **The PrivacyGuardian runs on the data subject's own device.** The data never leaves it unless
-  disclosed (D7).
-- **BystanderGuide and OnSceneHelper share the witness's phone**, so guidance keeps working without
-  network (F13); P16/P17 stay local.
-- **One VolunteerAgent plays R5 or R6** depending on the task awarded. A volunteer is the same person
-  whatever the task, so OS2 (one commitment at a time) is a property of a single agent.
-
-**Where the code is** (`src/cemr/agents/`). Each agent type has one module; the larger ones are split by
-role or by state, so that no module is much longer than 300 lines:
+Code in `src/cemr/agents/`, one module per agent type, larger ones split by role or state:
 
 | Agent type | Modules |
 |---|---|
-| all | `base.py` (`CEMRAgent`: routing, send path, P01 with fallback, P25), `conversation.py` (router, workers, periodic behaviours, conversation FSMs) |
-| `AEDHubAgent` | `aed_hub.py` (service handlers, P01 merging, P26), `hub_failover.py` (P27/P28), and the case FSM in `case_*.py` (§2.4) |
+| all | `base.py` (routing, send path, P01 with fallback, P25), `conversation.py` (router, workers, periodic behaviours, conversation FSMs) |
+| `AEDHubAgent` | `aed_hub.py` (service handlers, P01 merging, P26), `hub_failover.py` (P27/P28), `case_*.py` (§2.4) |
 | `CitizenDeviceAgent` | `citizen_device.py` |
-| `BystanderAgent` | `bystander.py` (WitnessReporter, PrivacyGuardian), `bystander_guide.py` (BystanderGuide, OnSceneHelper) |
-| `VolunteerAgent` | `volunteer.py` (bidding, OS2, OS8), `volunteer_mission.py` (mission FSM) |
+| `BystanderAgent` | `bystander.py`, `bystander_guide.py` |
+| `VolunteerAgent` | `volunteer.py` (bidding, OS2, OS8), `volunteer_mission.py` |
 | `EMSAgent` | `ems.py` |
 
 ## 2. Inside a SPADE agent
 
 ### 2.1 Routing
 
-SPADE delivers a message to **every** behaviour whose template matches it, and a behaviour without a
-template matches everything. Each agent therefore has a single **Router** (`CyclicBehaviour`, no
-template), and all other behaviours use a template that never matches. The router forwards:
-
-1. **Service requests**, whatever the thread:
-   - registrations (P25);
-   - AED reservation, retrieval and release (P11, P12, P20 `AEDRelease`);
-   - reputation summaries (P23);
-   - candidate notices (P26);
-   - heartbeats and case snapshots (P27);
-   - disclosure requests (P24).
-2. **Messages of an open conversation**, by `thread`, to that conversation's FSM.
-3. **Everything else** to the agent's `on_message`: new alerts, calls for proposals, awards, guidance
-   activations.
-
-P22 (QueryTrust) has no messages: the coordinator and the reputation manager are the same agent, so the
-coordinator reads the hub's trust table directly.
+SPADE delivers a message to every behaviour whose template matches, so each agent has a single
+`Router` (`CyclicBehaviour`, no template) and no other behaviour matches anything directly. The router
+sends service requests (P11, P12, P20 `AEDRelease`, P23–P27) to their handler, messages of an open
+conversation to that conversation's FSM by `thread`, and everything else (new alerts, calls, awards,
+guidance activations) to the agent's `on_message`. P22 has no messages: the coordinator reads its own
+hub's trust table.
 
 ### 2.2 Behaviour types
 
-These implement the liveness expressions (analysis §9.4):
+The behaviours implement the liveness expressions of the analysis:
 
 | Liveness pattern | SPADE behaviour | In this code |
 |---|---|---|
-| `(x)^ω`, the agent's message loop | `CyclicBehaviour` | `Router`; `Sensing` (device); `Watching` (bystander) |
-| Periodic activity | `PeriodicBehaviour` (`SimPeriodic`, period in simulated seconds) | `_DecayTrust`, `ShareReputation` (P23), heartbeat (P27), watching predecessors (D8) |
-| One episode with waits | `OneShotBehaviour` (`Worker`) | Alert episode; evaluating a call; answering triage; the OnSceneHelper loop; fallback purge; AED restock |
-| Multi-step protocol with states | `FSMBehaviour` (`Conversation`) | `CaseFSM` (hub), `Mission` (volunteer), `EMSMission` (ambulance), `Guidance` (bystander) |
+| `(x)^ω`, the message loop | `CyclicBehaviour` | `Router`; `Sensing` (device); `Watching` (bystander) |
+| Periodic activity | `PeriodicBehaviour` (`SimPeriodic`, period in simulated seconds) | trust decay, P23 gossip, P27 heartbeat, watching predecessors |
+| One episode with waits | `OneShotBehaviour` (`Worker`) | alert episode, evaluating a call, answering triage, the helper loop |
+| Multi-step protocol | `FSMBehaviour` (`Conversation`) | `CaseFSM` (hub), `Mission` (volunteer), `EMSMission`, `Guidance` (bystander) |
 
-**Lifecycle.**
-
-- SPADE removes a behaviour from its agent when it finishes, so workers and conversations do not
-  accumulate.
-- Every state and worker catches its own exceptions and writes an `error` event.
-- SPADE's `kill()` only takes effect between iterations, and our states loop inside one iteration.
-  So `next_incoming` checks whether the agent stopped, and a stopped agent's `send_to` is silent.
-  This is what makes a crashed hub stop acting at once (crash-stop, OS1).
+Finished behaviours are removed by SPADE, so they do not accumulate. Each state catches its own
+exceptions and logs an `error` event. Because `kill()` only acts between iterations, `next_incoming`
+checks whether the agent stopped and a stopped agent sends nothing: a crashed hub stops acting at once.
 
 ### 2.3 Time
 
-All periods, timeouts and deadlines are in **simulated seconds** and pass through `SimClock` (factor
-10 by default; [spikes/README.md](../spikes/README.md)). A conversation waits with
-`next_incoming(deadline)`, which converts the remaining simulated time into a real timeout.
-
-A run is **valid** only if simulated time really advanced as intended. `run.py` flags any of these:
-
-- the clock fell short of the duration;
-- the machine was suspended (wall clock vs monotonic clock);
-- the event loop stalled by more than 2 simulated seconds.
+All periods and deadlines are in simulated seconds and go through `SimClock` (10× by default). A
+conversation waits with `next_incoming(deadline)`, which converts simulated into real time. `run.py`
+marks a run invalid if the clock fell short, the machine was suspended or the event loop stalled for
+more than 2 simulated seconds.
 
 ### 2.4 Case FSM (hub)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> VERIFY: P01 opens a candidate (announced to neighbours, P26)
+    [*] --> VERIFY: P01 opens a candidate (P26 to neighbours)
     VERIFY --> DISPATCH: p >= τ_declare(p) and OS4 holds (P06)
-    VERIFY --> DISCARD: p < 0.03, W_max expired, or merged into an earlier candidate (P26)
-    DISPATCH --> CLOSE: priority P3 (contact only), or retracted (P07)
+    VERIFY --> DISCARD: p < 0.03, W_max expired, or merged (P26)
+    DISPATCH --> CLOSE: P3 (contact only), or retracted (P07)
     DISPATCH --> TRACK: awards sent (P09, P10)
-    TRACK --> CLOSE: TRANSPORTING, false alarm (EMS or human-confirmed retraction), timeout
-    CLOSE --> [*]: P20 to participants, AED release, P21 outcome labels
-    DISCARD --> [*]: P20 to an active guide; weak negative labels for cancelled sources
+    TRACK --> CLOSE: TRANSPORTING, false alarm, timeout
+    CLOSE --> [*]: P20, AED release, P21 labels
+    DISCARD --> [*]: P20 to an active guide; weak negative labels
 ```
 
 | State | What it does |
 |---|---|
-| **VERIFY** | Announces the candidate (P26) and queries the neighbourhood (P03). Asks witnesses the triage questions (P04) and repeats unanswered ones (F5). Activates guidance as soon as a witness says the person does not respond (OL3). Fuses evidence after every message (§4.1). |
-| **DISPATCH** | Logs P06 and replicates the case (P27). Asks the subject's guardian for the location (P24), again if there is no answer. Calls ambulances (P10) and volunteers in ring 1 (P08), widening to ring 2 if nobody bids. Reserves an AED (P11), awards (P09, P10) and tells the guide what help is coming (P15). |
-| **TRACK** | Follows P13 statuses and refreshes each awardee's deadline from the ETA it reports. Asks for the location again while it is still unknown, e.g. when the answer after a takeover was lost. Flags awards past ETA + δ and re-recruits uncovered tasks (OL6). Releases responders still on the way once N_need are on scene (OL8). Answers the ambulance's ON_SCENE with the roster (volunteers, else the guide). Releases everyone when the EMS takes over (OL7). Retries the ambulance call with backoff while no unit is free. Resends unacknowledged releases (F5). |
-| **CLOSE** | Sends `CaseClosure` to participants and guides, and twice to the data guardian (OS11). Releases the AED, sends the P21 outcome labels to the hub's ReputationManager, and tells the successor the case is closed. |
+| VERIFY | P26 to neighbours, P03 to the neighbourhood, P04 to witnesses (unanswered questions re-asked, F5). P05 as soon as a witness says the person does not respond (OL3). Fuses evidence after every message (§4.1) |
+| DISPATCH | Logs P06, replicates (P27), asks the guardian for the location (P24, repeated once). Calls ambulances (P10) and volunteers (P08, widened to ring 2), reserves an AED (P11), awards (P09, P10), tells the guide what help is coming (P15) |
+| TRACK | Follows P13; refreshes deadlines from reported ETAs; re-recruits uncovered or late tasks (OL6); releases the surplus (OL8); answers the ambulance's ON_SCENE with the roster; releases everyone after the EMS takes over (OL7); retries the ambulance call with backoff; resends unacknowledged releases (F5) |
+| CLOSE | `CaseClosure` to participants and twice to the data guardian (OS11), AED release, P21 labels, closure to the successor |
 
-The same `CaseFSM.handle` processes a case message in every state. A late witness report after
-declaration still updates the belief, and if a human cancellation makes the belief fall below 0.3,
-the case is **retracted** (P07, §4.1).
-
-| Module | Contents |
-|---|---|
-| `case_record.py` | `CaseRecord` (resource `incidentCase`), `AwardInfo`, the state names and the P27 snapshot conversion |
-| `case_fsm.py` | `CaseFSM`: builds the states and maps each message type to its handler |
-| `case_verify.py` | VERIFY and DISCARD; handlers of P01–P05 and P26 |
-| `case_dispatch.py` | DISPATCH; P24 location, P10 ambulance, P15 help notice |
-| `case_awards.py` | The Contract Net with volunteers: P08 calls, P11 reservation, P09 awards (also used in TRACK) |
-| `case_track.py` | TRACK; P13 statuses, OL6 re-recruitment, P14 releases, P07 retraction |
-| `case_close.py` | CLOSE; P20 closure and P21 outcome labels |
+A late witness report still updates the belief, and a human cancellation that drops it below 0.3
+retracts the case (P07). Modules: `case_record.py` (record and P27 snapshot), `case_fsm.py` (states and
+message dispatch), `case_verify.py` (VERIFY, DISCARD), `case_dispatch.py`, `case_awards.py` (Contract Net
+with volunteers), `case_track.py`, `case_close.py`.
 
 ### 2.5 Volunteer and ambulance missions
 
@@ -144,8 +104,8 @@ stateDiagram-v2
         [*] --> GO_SCENE: GO_TO_PATIENT
         GO_AED --> RETRIEVE: AT_AED
         RETRIEVE --> GO_SCENE: AED_OK or AED_MISSING
-        GO_SCENE --> ON_SCENE: ON_SCENE · takeover from the witness (P18) · CPR / AED
-        ON_SCENE --> [*]: P14 release, P20 closure, or 30 min without either (F5)
+        GO_SCENE --> ON_SCENE: takeover (P18), CPR / AED
+        ON_SCENE --> [*]: P14, P20, or 30 min without either (F5)
     }
 ```
 
@@ -154,16 +114,14 @@ stateDiagram-v2
     state "EMS Mission" as E {
         [*] --> TRAVEL: dispatch delay + travel
         TRAVEL --> ON_SCENE: arrived
-        TRAVEL --> RETURN: case closed or P14 (human-confirmed false alarm)
-        ON_SCENE --> RETURN: P19 handover, care, CLINICAL_CONFIRMATION, TRANSPORTING
-        RETURN --> [*]: AVAILABLE again
+        TRAVEL --> RETURN: closed or P14 (human-confirmed false alarm)
+        ON_SCENE --> RETURN: P19, care, CLINICAL_CONFIRMATION, TRANSPORTING
+        RETURN --> [*]: AVAILABLE
     }
 ```
 
-- **Interruptions.** A `Release` (P14) or `CaseClosure` (P20) ends a volunteer's mission in any state;
-  the volunteer stops where it is.
-- **Takeover.** A `Takeover` (P28) only changes whom the mission reports to.
-- **Re-registration.** After a mission the volunteer re-registers (P25) if it ended up in another cell.
+P14 or P20 ends a volunteer's mission in any state. P28 only changes whom the mission reports to. After
+a mission the volunteer re-registers (P25) if it is now in another cell.
 
 ### 2.6 Bystander guidance (SO-AT)
 
@@ -175,24 +133,19 @@ sequenceDiagram
     participant V as Volunteer
     H->>G: P05 request GuidanceActivation(priority, triage answers)
     G-->>H: P05 agree
-    loop _SelectNextStep from guidanceProtocol (OS12)
-        G->>O: P16 Instruction (local queue)
-        O-->>G: P17 Feedback (local queue) or silence
-        Note over G: silence for T_silence: repeat once, then P13 WITNESS_SILENT to the hub
+    loop next step from guidanceProtocol (OS12)
+        G->>O: P16 Instruction (local)
+        O-->>G: P17 Feedback (local) or silence
+        Note over G: silence for T_silence: repeat once, then P13 WITNESS_SILENT
     end
     H->>G: P15 HelpEnRoute(ETAs)
     V->>G: P18 request TakeoverRequest
     G-->>V: P18 inform ActionSummary(CPR start)
 ```
 
-- **Local exchange.** The guide and the helper exchange P16/P17 through local queues, so guidance
-  works without coverage. The guide's feedback arrives in its FSM mailbox like any other message.
-- **Starting point.** The guide starts at the step coherent with the triage answers it received, so
-  questions already answered are not asked again.
-- **Ending.** Guidance ends on P18 (a volunteer arrives), P19 (the EMS arrives with no volunteer on
-  scene) or P20.
-- **F11.** If the guide reports a silent witness on a P1 with nobody on scene yet, the hub asks for
-  one more volunteer.
+P16/P17 go through local queues, so guidance works without coverage. The guide starts at the step that
+matches the triage answers it received and ends on P18, P19 or P20. A silent witness on a P1 with nobody
+on scene makes the hub ask for one more volunteer (F11).
 
 ### 2.7 Failover (D8)
 
@@ -205,98 +158,50 @@ sequenceDiagram
         O->>S: P27 Heartbeat(open cases, lease)
         S-->>O: P27 HeartbeatAck
     end
-    O->>S: P27 CaseSnapshot (after every relevant change; no location, no clinical data)
+    O->>S: P27 CaseSnapshot (no location, no clinical data)
     Note over O: crash
     Note over S: no heartbeat for lease (15 s) + 1 heartbeat
     S->>P: P28 Takeover(new coordinator)
     S->>P: P24 RequestDisclosure (location again)
 ```
 
-| Aspect | Design |
-|---|---|
-| Successor | The owner's lowest-id neighbour. If its acks stop, the owner moves to the next neighbour and re-sends its snapshots. |
-| What fails | Hubs fail by **crash-stop** (fault injection). |
-| Inter-hub links | Fixed infrastructure: latency but no loss or coverage gaps. So a missing heartbeat means a crash, not a partition, and two hubs never own the same case. |
-| Out of scope | Partitions of the fixed network would need the owner to step down when its lease expires. This is a stated limitation. |
-| Alerts to a dead hub | A source that gets no `AlertAck` within 10 s re-sends to the hub's successors (F6). |
+If the successor's acks stop, the owner moves to its next neighbour and re-sends its snapshots. The
+failure model (crash-stop, lossless inter-hub links) is described in 02 §D8.
 
 ## 3. Services model
 
-Gaia's services model lists, per agent type, the services it offers: inputs, outputs, and the
-conditions before and after. Pre/post-conditions refer to the resources of analysis §4 and to the
-organisational rules.
+Pre- and post-conditions refer to the resources and rules of the analysis.
 
-### AEDHubAgent
-
-| Service | Inputs | Outputs | Pre-condition | Post-condition |
+| Agent | Service | Inputs → outputs | Pre-condition | Post-condition |
 |---|---|---|---|---|
-| Open or join candidate | `AlertReport` | `AlertAck`; candidate; P26 notice | Alert of this cell (or of a dead neighbour's) | Merged into an open candidate of the same cell opened within 90 s whose area is at most 100 m away, else a new candidate |
-| Resolve duplicates | P26 notice | `CandidateMerge` to the keeper, or our own notice back; alert relay | Candidate of the same incident (within 90 s, areas at most 100 m apart) | The candidate opened first keeps ownership; its hub answers with its notice; the other forwards its alerts and discards |
-| Corroborate | candidate | P03 queries, P04 questions | Candidate open | Evidence fused; every source counted once; a confirmation from another area is ignored |
-| Activate guidance | complete triage, not responding | P05 | Witness answered the triage (OL5) | Guide active on the witness's phone (OL3) |
-| Declare | belief, sources | `case_declared`, P06 | `p ≥ τ_declare(p)` ∧ OS4 | One owner (OS1); evidence and weights audited (OS10) |
-| Discard | belief, clock | `candidate_discarded` | `p < 0.03` ∨ `W_max` expired ∨ merged | No dispatch; an active guide is closed |
-| Retract | human cancellation after declaration | P07; P14 to volunteers (and to the EMS) | Belief below 0.3 | Ambulance cancelled only for a human-confirmed false alarm (OS6) |
-| Locate | subject | P24 request (repeated once) | Case declared, P1/P2 | Location set, or refusal logged |
-| Dispatch | needs(p), registry, AED registry | P10, P08, P11, P09, P15 | Location known (for awards) | ≤ N_max awards; one commitment per awardee (OS2); AED reserved first (OS3) |
-| Track | P13 statuses | roster, P14, new P08 calls | Case in TRACK | Re-recruitment on failure or delay (OL6); surplus released (OL8); release after EMS (OL7) |
-| Close | outcome | P20, `AEDRelease`, P21 | Outcome known or timeout | Participants informed; guardian purges (OS11); one outcome label set (OL9) |
-| Register | `Registration` | `RegistrationAck` | — | Reachable for P03/P08, without coordinates (D3) |
-| Custody of own AED | P11, P12, P20 | agree/refuse, unlock code | Valid reservation and award token | ≤ 1 active reservation (OS3); single-use code; restock after use |
-| Reputation | P21 labels, P23 summaries | trust values, P23 gossip | — | Unknown pseudonyms at the prior (OS13); decay towards it |
-| Replicate / take over | own cases; P27 from predecessors | P27, P28 | Predecessor silent > lease + margin | Cases continue under one owner; location re-requested |
-
-### CitizenDeviceAgent
-
-| Service | Inputs | Outputs | Pre-condition | Post-condition |
-|---|---|---|---|---|
-| Detect | sensor event (perception) | event type, local confidence | — | Raw signals never leave the device |
-| Alert | event, policy | P01 (pending / no_response), P02 | AlertFirst for P1-like signals, ConfirmFirst otherwise (adaptive) | Acknowledged by the cell's hub or, failing that, its successor (F6) |
-| Summarise evidence | `CorroborationQuery` | `CorroborationReply` | — | Only a verdict, a confidence and the alert's area (~100 m) are sent |
-| Disclose (guardian) | `DisclosureRequest` | `Disclosure` / refusal | Hub or EMS of an active case; P1/P2 or consent | Logged; purged on closure or after the fallback retention |
-
-### BystanderAgent
-
-| Service | Inputs | Outputs | Pre-condition | Post-condition |
-|---|---|---|---|---|
-| Report | collapse seen (perception) | P01 witness report | Chooses to report (`p_report`) | Re-registered in the scene's cell |
-| Corroborate | `CorroborationQuery` | confirm / no_data | — | Confirms only its own cell and time window, with the scene's area |
-| Answer triage | `TriageQuestion` | `TriageAnswer` | At the scene (else `unknown`) | Silence counts as unknown |
-| Guide | P05, P15, P18, P19 | P16 instructions, P13 WITNESS_SILENT, `ActionSummary` | At the scene, no other guidance active | Instructions only from `guidanceProtocol` (OS12) |
-| Disclose own location | `DisclosureRequest` | `Disclosure` / refusal | At the scene; same policy | Logged; purged on closure or fallback |
-
-### VolunteerAgent
-
-| Service | Inputs | Outputs | Pre-condition | Post-condition |
-|---|---|---|---|---|
-| Bid | `CallForProposals` | `Proposal` with ETAs / refusal | Not committed; under A_max / K_max (OS8); accepts (`p_accept`) | Position not disclosed, only ETAs |
-| Commit | `Award` | `AwardConfirmation` / failure | No other commitment (OS2) | Mission FSM started |
-| Fetch AED | award with reservation and token | P12; AED_OK / AED_MISSING | Valid reservation for this case | AED carried to the scene, or the runner helps with CPR |
-| Respond on scene | location, guide | P18, CPR, AED, P13, P19 summary | Arrived | Patient changed only on scene |
-
-### EMSAgent
-
-| Service | Inputs | Outputs | Pre-condition | Post-condition |
-|---|---|---|---|---|
-| Bid | `AmbulanceCall` | `AmbulanceProposal` / refusal | AVAILABLE | ETA includes the dispatch delay |
-| Respond | `AmbulanceAward` | confirmation, P13, P19 | AVAILABLE | Clinical confirmation always reported (reference label) |
-| Stand down | P14 (human-confirmed false alarm) | `ReleaseAck` | En route | Returns to base (OS6) |
+| Hub | Open or join candidate | `AlertReport` → `AlertAck`, P26 notice | Alert of this cell or of a dead neighbour's | Merged into a candidate opened within 90 s whose area is ≤ 100 m away, else a new one |
+| Hub | Resolve duplicates | P26 notice → `CandidateMerge` or own notice | Same incident | First opened keeps the case; the other forwards its alerts |
+| Hub | Corroborate | candidate → P03, P04 | Candidate open | Each source counted once; confirmations from another area ignored |
+| Hub | Activate guidance | triage "not responding" → P05 | Witness answered the triage (OL5) | Guide active (OL3) |
+| Hub | Declare / discard / retract | belief → P06 / discard / P07 | `p ≥ τ_declare(p)` ∧ OS4 / `p < 0.03` ∨ `W_max` / belief < 0.3 after a human cancellation | One owner (OS1), audited (OS10); ambulance cancelled only on a human-confirmed false alarm (OS6) |
+| Hub | Locate | subject → P24 | P1/P2 declared | Location set or refusal logged |
+| Hub | Dispatch and track | needs(p) → P10, P08, P11, P09, P15, P14 | Location known for awards | ≤ N_max awards, OS2, OS3; OL6, OL7, OL8 |
+| Hub | Close | outcome → P20, `AEDRelease`, P21 | Outcome known or timeout | Guardian purges (OS11); one label set (OL9) |
+| Hub | Register, custody, reputation, failover | P25, P11/P12, P21/P23, P27 | — | No coordinates kept (D3); ≤ 1 reservation per AED; new pseudonyms at the prior (OS13); one owner after takeover |
+| Device | Detect and alert | sensor event → P01, P02 | AlertFirst for P1-like signals, else ConfirmFirst | Raw signals never leave the device; acknowledged by the hub or its successor (F6) |
+| Device | Corroborate | `CorroborationQuery` → reply | — | Only verdict, confidence and area (~100 m) |
+| Device, bystander | Disclose (guardian) | `DisclosureRequest` → `Disclosure` / refusal | Hub or EMS of an active case; P1/P2 or consent | Logged; purged on closure or after the fallback retention |
+| Bystander | Report, answer triage | collapse seen → P01; `TriageQuestion` → answer | Chooses to report (`p_report`); at the scene | Silence counts as unknown |
+| Bystander | Guide | P05, P15, P18, P19 → P16, P13, `ActionSummary` | At the scene | Instructions only from `guidanceProtocol` (OS12) |
+| Volunteer | Bid and commit | `CallForProposals` → `Proposal`; `Award` → confirmation / failure | Not committed, under A_max / K_max (OS8) | Only ETAs leave the phone; one commitment (OS2) |
+| Volunteer | Fetch AED, respond | award → P12, P18, P13, P19 | Valid reservation; arrived | AED delivered or runner helps with CPR |
+| EMS | Bid, respond, stand down | `AmbulanceCall` → proposal; award → P13, P19; P14 → ack | AVAILABLE; en route for P14 | Clinical confirmation always reported (reference label) |
 
 ## 4. Decision logic
 
-All decision logic lives in pure modules under `src/cemr/behaviours/` and is unit-tested without SPADE
-(`tests/test_verification.py`, `test_allocation.py`, `test_tracking.py`, `test_privacy_reputation.py`,
-`test_guidance.py`). The agents' FSM states call these functions and only send messages and log events.
+The decision logic lives in pure modules under `src/cemr/behaviours/`, unit-tested without SPADE. The
+agents' states call these functions and only send messages and log events.
 
 ### 4.1 Evidence fusion and priority (D5, `verification.py`)
 
-`L = logit(prior) + Σ w(trust) · confidence · ln LR(evidence)`, with `w = min(2, trust / 0.5)`.
-
-With `w = confidence = 1` this is the Bayesian update of naive Bayes (evidence independent given the
-patient's state). Weighting `ln LR` by trust and confidence is a heuristic, a tempered likelihood that gives
-less force to unreliable sources; it is not an exact Bayesian update.
-
-The table shows the calibration: each target, the sum of terms, and the resulting probability.
+`L = logit(prior) + Σ w(trust) · confidence · ln LR(evidence)`, with `w = min(2, trust / 0.5)`. With
+`w = confidence = 1` this is the naive Bayes update; the trust weight is a heuristic, not an exact
+Bayesian update. Calibration with prior 0.15:
 
 | Target | Terms | Result |
 |---|---|---|
@@ -304,238 +209,168 @@ The table shows the calibration: each target, the sum of terms, and the resultin
 | P2 device alert + silent wearer → declare | logit(.15) + .68 ln 3 + ln 10 | p = .79 ≥ .75 |
 | Any device alert + "I'm fine" → discard | logit(.15) + .8 ln 3 + ln .05 | p = .02 < .03 |
 | Witness report + "no response, not breathing" → declare | logit(.15) + .8 ln 6 + ln 10 | p = .88 ≥ .60 |
-| P3 fall detected only by a sensor | logit(.15) + .45 ln 3 + ln 10 | p = .74 < .85: not dispatched (contact only) |
+| P3 fall detected only by a sensor | logit(.15) + .45 ln 3 + ln 10 | p = .74 < .85, contact only |
 
-**Priority, with safety first.** Each active source supports a priority:
+Each active source supports a priority: a witness's coherent triage gives its own (P1 not responding
+and not breathing, P2 not responding but breathing, P3 responding); otherwise the provisional priority
+of its alert (`collapse_cardiac` P1, `fall_immobile` P2, `fall` P3, witness report P1). The case takes
+the most severe one (§9.3). Three refinements came from runs:
 
-- a witness's **coherent** triage gives its own priority (P1: not responding and not breathing;
-  P2: not responding but breathing; P3: responding);
-- otherwise a source supports the provisional priority of its alert (`collapse_cardiac` → P1,
-  `fall_immobile` → P2, `fall` → P3, witness report → P1).
+- an incoherent triage ("responds" but "does not breathe normally") is asked again once, and ignored if
+  still incoherent;
+- a triage that contradicts the witness's own report ("responds" after reporting a collapse) is asked
+  again once (`triage_contradicts_report`); before this, a lone witness's case dropped to P3, could not
+  reach τ(P3) = 0.85 and was discarded (§7.1);
+- a source adds its alert evidence once per candidate, however many alerts it sends.
 
-The case takes the **most severe** of these.
-
-- **Why not let the witness's triage win.** An early version did, and a witness's 10 % observation
-  error turned a P1 detected by a cardiac sensor into a P3 that was never dispatched.
-- **Incoherent triage.** "Responds" but "does not breathe normally" cannot both be true. Since
-  observation errors are independent, the hub asks those two questions once more (F4). A second
-  incoherent answer is ignored. Before this, a single witness's incoherent triage left OS4 unmet and
-  the P1 was discarded when its window expired.
-- **Triage that contradicts the report.** A witness who reported (or confirmed) a collapse and then says
-  the person responds misread the scene one of the two times. The hub asks the two key questions once
-  more (`triage_contradicts_report`, F4); a second "responds" is accepted and the case stays at P3. Before
-  this, the first answer was accepted: the case dropped to P3, a lone witness's report could never reach
-  τ(P3) = 0.85, and the candidate was discarded. In a C3 run (seed 5) this lost a shockable P1 whose
-  witness answered "responds, breathes"; it explained most of the recall gap to B1 in C3.
-- **Repeated alerts from one source.** A source adds its alert evidence once per candidate, however many
-  alerts it sends (D5). Until the audit of 16 Nov each new alert id added it again: a drifting device that
-  fired twice within 12 s raised the belief from 0.26 to 0.39 with no new source.
-- **Retraction (P07).** A declared case whose belief falls below 0.3 after a human cancellation (the
-  wearer's "I'm fine", or a witness retracting) is retracted. Volunteers are released, and so is the
-  ambulance, because a human confirmed the false alarm (OS6).
+A declared case whose belief falls below 0.3 after a human cancellation is retracted (P07), and the
+ambulance is released because a human confirmed the false alarm (OS6).
 
 ### 4.2 Contract Net and re-allocation (D4, `contract_net.py`, `case_awards.py`)
 
-`score = ETA × (1 + 0.5 · [below the needed qualification]) / (trust / 0.5)`; lower is better.
+`score = ETA × (1 + 0.5 · [below needed qualification]) / (trust / 0.5)`, lower is better. The
+FETCH_AED slot is filled first (best bid whose AED can be reserved), then the GO_TO_PATIENT slots
+greedily, one task per bidder, at most N_max. Each award has a deadline `ETA + δ` (δ = 120 s), refreshed
+when the volunteer reports EN_ROUTE. A failed award (WITHDRAWN, AED_MISSING, UNSAFE_SCENE, P09
+`failure`) or one past its deadline is re-awarded from existing bids, then by a ring-2 call; a missing
+AED is excluded (OL6). When N_need(p) rescuers are on scene (P1: 2, P2: 1) the others are released, an
+AED runner only after an AED arrived (OL8). Baseline B1 (`policy.allocation = "naive"`) declares on the
+first alert, calls every volunteer up to ring 2, awards the first bidders and uses no reputation.
 
-1. **Awards.**
-   - The FETCH_AED slot is filled first: the best bid whose AED can be reserved wins.
-   - The GO_TO_PATIENT slots are then filled greedily, one task per bidder, at most N_max in total.
-2. **Deadlines.** Each award has a deadline `arrive_by = ETA + δ` (δ = 120 s). It is refreshed
-   whenever the volunteer reports EN_ROUTE with its own ETA for the current leg. In the first runs,
-   leaving the deadline at the award-time estimate (made to the cell centre) flagged an AED runner as
-   late 1.7 s before it arrived.
-3. **OL6.** A failed award (WITHDRAWN, AED_MISSING, UNSAFE_SCENE, or P09 `failure`), or one past its
-   deadline without arriving, no longer covers its task. The coordinator first awards from bids it
-   already has, then calls ring 2. If an AED went missing, it is excluded from the next call.
-4. **OL8.** When N_need(p) rescuers are on scene (P1: 2, P2: 1), awardees still on the way are
-   released; an AED runner is released only once an AED has been delivered.
-5. **Baseline B1** (`policy.allocation = "naive"`):
-   - no verification: the case is declared on the first alert;
-   - every volunteer up to ring 2 is called;
-   - the first bidders to answer win;
-   - no reputation.
-
-ETAs are estimated to the **centre of the case's cell** because the precise location is only disclosed
-with the award.
-
-**Metric M9 (gap to the oracle B0)** has two parts. Measured from the collapse it also contains detection
-and verification. Measured from the declaration it contains only dispatch: the call, the proposal
-deadline, refusals (`p_accept`), the award and the trip. B0 is an optimistic bound: it ignores refusals,
-volunteers already busy and positions after earlier missions, so in the surge (C3) it may send one
-volunteer to several patients at once. M9 therefore bounds the cost of privacy (ETA to the cell centre)
-and of the greedy award from above; it does not isolate them.
+ETAs are estimated to the centre of the case's cell, because the precise location only comes with the
+award. Metric M9 (gap to the oracle B0) measured from the declaration therefore contains this privacy
+cost, the greedy award, refusals and the proposal deadline; it bounds them from above without
+separating them. B0 ignores refusals and busy volunteers, so it is optimistic.
 
 ### 4.3 Disclosure (D7, `privacy.py`)
 
 | Field | Who may receive it | Legal basis |
 |---|---|---|
-| Precise location, building access | Hub (coordinator) or EMS of an active case | Consent, or vital interests in P1/P2 (GDPR art. 9(2)(c)) |
+| Precise location, building access | Coordinator or EMS of an active case | Consent, or vital interests in P1/P2 (GDPR art. 9(2)(c)) |
 | Clinical data, identity | EMS of an active case only | Same |
 
-- **Refusals.** Everyone else is refused with a reason, and every decision is logged.
-- **Retention.** The guardian purges a case's data on `CaseClosure`, sent twice. If the closure never
-  arrives, it purges after a fallback retention of 2 h (OS11, F5).
+Everyone else is refused and every decision is logged. The guardian purges a case's data on
+`CaseClosure` (sent twice) or, failing that, after 2 h (OS11, F5).
 
 ### 4.4 AED custody (OS3, `aed_custody.py`)
 
-| From | Event | To |
-|---|---|---|
-| AVAILABLE | reserve | RESERVED |
-| RESERVED | retrieve with reservation ref + award token | IN_USE |
-| IN_USE | case closed | UNAVAILABLE until restocked (30 min) |
-| UNAVAILABLE | restocked | AVAILABLE |
-| RESERVED | expiry or cancel | AVAILABLE |
-
-- **Faulty cabinet.** It fails at retrieval (F8).
-- **Locked cabinet** (outside opening hours, C4). It stays UNAVAILABLE.
-- **Several reservations.** A case never holds two at once: an old reservation is cancelled before
-  another AED is reserved.
+AVAILABLE → RESERVED on reservation; RESERVED → IN_USE on retrieval with reservation ref and award
+token; RESERVED → AVAILABLE on expiry or cancel; IN_USE → UNAVAILABLE on closure, back to AVAILABLE
+after a 30 min restock. A faulty cabinet fails at retrieval (F8); a locked one (C4, outside opening
+hours) stays UNAVAILABLE. A case cancels its old reservation before reserving another AED.
 
 ### 4.5 Reputation (D6, `reputation.py`)
 
-**Labels (P21), written when the case closes:**
-
-| Who | Success | Failure | Reference |
-|---|---|---|---|
-| Sources that supported the case | Real incident | False alarm | EMS clinical confirmation, or a human-confirmed false alarm |
-| Responders | Arrived within ETA + δ | Failed, or late without arriving | — |
-
-- **Discarded candidates.** A source that alerted and was then cancelled by a human gets a weak
-  negative label (weight 0.5).
-- **Gossip and decay.** Each hub sends its own counts to its neighbours every 10 min (P23). A
-  neighbour's latest summary counts with discount 0.5, and recommendations are never re-shared, so
-  they do not echo between hubs. All counts decay by 2 % every 10 min.
-- **Use.** Trust weighs evidence (§4.1) and ranks bids (§4.2).
+At closure (P21), sources that supported the case get success if the incident was real and failure if
+it was a false alarm (EMS confirmation or human-confirmed false alarm as reference). Responders get
+success if they arrived within ETA + δ. A source cancelled by a human on a discarded candidate gets a
+weak negative label (weight 0.5). Each hub sends its own counts to its neighbours every 10 min (P23);
+a neighbour's latest summary counts with discount 0.5 and is never re-shared. Counts decay by 2 % every
+10 min. Trust weighs evidence (§4.1) and ranks bids (§4.2).
 
 ### 4.6 Guidance protocol (OS12, `guidance.py`)
 
-`SCENE_SAFETY` → `CHECK_RESPONSE` → `CALL_112` (if nobody has) → `CHECK_BREATHING` → then:
+`SCENE_SAFETY` → `CHECK_RESPONSE` → `CALL_112` (if nobody has) → `CHECK_BREATHING`, then
+`COMPRESSIONS` in two-minute cycles at 110/min if not breathing, or `RECOVERY_POSITION` →
+`KEEP_WATCHING` if breathing (back to compressions if breathing stops). Steps already answered in the
+triage are skipped; the guide can only choose steps from this list.
 
-- **not breathing:** `COMPRESSIONS` (two-minute cycles at 110/min, repeated until someone takes over);
-- **breathing:** `RECOVERY_POSITION` → `KEEP_WATCHING`.
-
-If breathing stops, the guide returns to compressions. Steps already answered in the triage are
-skipped. The guide can only choose step ids from this table.
-
-### 4.7 Failure modes (analysis §8.4) as implemented
+### 4.7 Failure modes as implemented
 
 | Failure | Detection | Handling | Where |
 |---|---|---|---|
-| F1 sensor false positive | wearer answers; corroboration | P02, OS4, reputation | `citizen_device`, `verification`, P21 |
+| F1 sensor false positive | wearer answers; corroboration | P02, OS4, reputation | `citizen_device`, `verification` |
 | F2 false negative, person alone | — | third OS4 branch (automatic alert + silent wearer) | `verification.os4_branch` |
-| F3 sensor drift | trust of the source falls | weight by trust; decay | `reputation`, C2 |
-| F4 wrong or misread human report | incoherent triage, or triage that contradicts the witness's report; EMS finds nobody | re-ask the key questions once; reputation; prior trust for new witnesses | `case_verify.recheck_triage`, `verification.triage_contradicts_report`, P21, C2 |
-| F5 lost or late messages | deadlines | triage re-ask (12 s), P24 re-request (also during TRACK), P14 resend, idempotent ids, mission time cap, double closure | `case_verify`, `case_track`, `volunteer_mission` |
+| F3 sensor drift | trust of the source falls | trust weight, decay | `reputation`, C2 |
+| F4 wrong or misread human report | incoherent or contradicting triage; EMS finds nobody | re-ask once; reputation; prior trust | `case_verify.recheck_triage`, C2 |
+| F5 lost or late messages | deadlines | re-ask triage (12 s), re-request P24, resend P14, idempotent ids, double closure | `case_verify`, `case_track`, `volunteer_mission` |
 | F6 hub failure | heartbeats stop | successor takeover (P27/P28); sources fall back to the successor | `hub_failover`, `base.raise_alert`, C4 |
-| F7 volunteer no-show or late | ETA + δ, WITHDRAWN | re-recruitment (OL6); release of surplus (OL8) | `case_track.check_progress`, `tracking` |
-| F8 AED missing or locked | `AED_MISSING`, registry state | AED excluded; new FETCH call | `case_awards`, `aed_custody` |
-| F9 simultaneous incidents | — | one commitment per responder (OS2), one reservation per AED (OS3) | C3 |
+| F7 volunteer no-show or late | ETA + δ, WITHDRAWN | re-recruitment (OL6), surplus release (OL8) | `case_track.check_progress` |
+| F8 AED missing or locked | `AED_MISSING`, registry state | AED excluded, new FETCH call | `case_awards`, `aed_custody` |
+| F9 simultaneous incidents | — | OS2, OS3, calls in priority order | C3 |
 | F10 ambulance late or unavailable | no proposals | retry with backoff (30 → 120 s); guided CPR continues | `case_dispatch.award_ambulance` |
 | F11 witness gives up | silence for T_silence | repeat, WITNESS_SILENT, one more volunteer on P1 | `bystander_guide`, `case_track` |
-| F12 personal-data leak | audit log | need-to-know policy; purge; rule check OS5/OS11 | `privacy`, `rules_safety` |
+| F12 personal-data leak | audit log | need-to-know policy, purge, rule check OS5/OS11 | `privacy`, `rules_safety` |
 | F13 cell without network | — | local guidance; fallback hub; 112 remains (A7) | `bystander`, C4 |
-| F14 duplicate case across borders | P26 notices | first opened keeps; its hub answers the newer one's notice; relays alerts; rule DUP | `aed_hub`, `verification.notice_decision` |
-| F15 alert spam with fresh pseudonyms | EMS finds nobody | prior trust (OS13); OS4 still needs evidence; repeat offenders lose trust | `reputation`, scenario C5 |
+| F14 duplicate case across borders | P26 notices | first opened keeps; older hub answers; rule DUP | `verification.notice_decision` |
+| F15 alert spam with fresh pseudonyms | EMS finds nobody | prior trust (OS13); OS4; repeat offenders lose trust | `reputation`, C5 |
 
 ## 5. Behaviour models of the humans and the environment
 
-Parameters are in `scenarios/defaults.toml`, with the analysis assumption they implement.
+Parameters are in `scenarios/defaults.toml`, next to the analysis assumption they implement.
 
 | Model | Behaviour |
 |---|---|
-| Wearer (A4) | A conscious wearer answers "Are you OK?" with p = 0.9 within 3–25 s; a P1/P2 patient never answers. |
-| Witness (A5) | Reports with p = 0.8 after 20–60 s, standing 5–15 m from the patient. Answers each triage question with p = 0.95 and misreads the patient's state with p = 0.1 (0.2 in C2). In C2 some citizens also "see" a collapse that is not one (a sleeping person), and answer accordingly. In C5 two citizens (pranksters) report such scenes about 4 times per hour each, always. |
-| OnSceneHelper (A5) | Starts each instruction after 3–8 s. Gives up with p = 0.03 per instruction, plus 0.03 per compression cycle after the second (fatigue). Says it is tired from the third cycle. |
-| Volunteer (A6) | Accepts a call with p = 0.7 after 3–8 s. An awardee fails to show with p = 0.05 (half withdraw on the way, half go silent). Real travel takes 0–30 % longer than estimated. |
-| Sensors (A2) | Detect a real collapse with p = 0.9 after 10–20 s; 0.02 false positives per device per hour. In C2 there are ×5 false positives and 4 drifting devices with 3 per hour, half of which the wearer never answers (device left on a table), so they pass OS4 and reach dispatch; these repeated offenders are what reputation can learn from. |
-| EMS | 240 s of call handling and activation, then 30 km/h. In C4 the stations are 1.5 km outside the area and activation takes 300 s. |
+| Wearer (A4) | A conscious wearer answers "Are you OK?" with p = 0.9 within 3–25 s; a P1/P2 patient never answers |
+| Witness (A5) | Reports with p = 0.8 after 20–60 s. Answers each triage question with p = 0.95 and misreads the patient with p = 0.1 (0.2 in C2). In C2 some citizens report a scene that is not a collapse; in C5 two pranksters report such scenes about 4 times per hour each |
+| OnSceneHelper (A5) | Starts each instruction after 3–8 s; gives up with p = 0.03 per instruction, plus 0.03 per compression cycle after the second |
+| Volunteer (A6) | Accepts a call with p = 0.7 after 3–8 s; fails to show with p = 0.05; real travel 0–30 % slower than estimated |
+| Sensors (A2) | Detect a collapse with p = 0.9 after 10–20 s; 0.02 false positives per device-hour. C2: ×5, plus 4 drifting devices with 3 per hour, half never answered by the wearer |
+| EMS | 240 s of activation, then 30 km/h (an assumption, see §7). C4: stations 1.5 km outside the area and 300 s activation |
 
 ## 6. Environment as implemented
 
-The `World` (`src/cemr/sim/world.py`) is simulation infrastructure, not an agent. Access goes through
-methods that follow the environment–role matrix (analysis §5.4).
+The `World` (`src/cemr/sim/world.py`) is simulation infrastructure, not an agent. Access follows the
+environment–role matrix of the analysis (§5.4).
 
-| Resource (analysis §4.1) | Implementation | Access |
+| Resource | Implementation | Access |
 |---|---|---|
-| `roadNetwork` | `CityGrid`: 3 × 3 km, 100 m grid, Manhattan travel, Voronoi cells, neighbours, rings | Read by all |
-| `simClock` | `SimClock` | Read by all |
-| `sensorStream[d]` | Pre-generated sensor events, delivered to the device's perception queue | Only device `d` |
-| `wearerResponse[d]` | `World.wearer_response(d)` | Only device `d` |
-| `aedRegistry` | `World.aed_registry` | Read by all; an entry is changed only by its own hub |
-| `patientCondition[c]` | `PatientState`; `observe_patient`, `act_start_cpr`, `act_attach_aed`, `act_ems_arrive` (within 30 m of the patient) | Only on scene |
-| `groundTruth` | `gt_*` events in the log; the trace file | No agent |
-| `auditLog` | `EventLog` (events.jsonl) | Append by all; read by metrics and the rule checker |
-| `incidentCase`, `trustTable`, `responderState`, `emsState`, `subjectData` | Held inside the agent that owns them | Through protocols only |
+| `roadNetwork` | `CityGrid`: 3 × 3 km, 100 m grid, Manhattan travel, Voronoi cells, rings | All |
+| `simClock` | `SimClock` | All |
+| `sensorStream[d]`, `wearerResponse[d]` | Pre-generated events; `World.wearer_response(d)` | Only device `d` |
+| `aedRegistry` | `World.aed_registry` | Read by all, changed only by its hub |
+| `patientCondition[c]` | `PatientState`; `observe_patient`, `act_start_cpr`, `act_attach_aed`, `act_ems_arrive` | Only within 30 m |
+| `groundTruth` | `gt_*` events and the trace file | No agent |
+| `auditLog` | `EventLog` (`events.jsonl`) | Append by all; read by metrics and checker |
+| `incidentCase`, `trustTable`, `responderState`, `emsState`, `subjectData` | Inside the owning agent | Through protocols |
 
-**Network** (`NetworkModel`):
-
-- log-normal latency (median 0.3 s);
-- loss and per-cell outages on links that involve a phone;
-- FIFO order per link;
-- inter-hub links without loss or gaps;
-- messages to or from a crashed agent are dropped (`agent_down`).
-
-**Reproducibility (RNF9).**
-
-- The layout and the whole stimulus trace (collapses, sensor events, witness observations, misread
-  scenes, wearer responses, the C3 surge) are generated before the run from the seed. The trace hash
-  is recorded, and the same seed gives the same hash.
-- Agents draw from per-agent random streams.
-- Message interleavings still depend on asyncio scheduling, so results are means over seeds.
+The `NetworkModel` adds log-normal latency (median 0.3 s), loss and per-cell outages on links that
+involve a phone, keeps FIFO order per link, and drops messages to or from a crashed agent; inter-hub
+links have no loss. The layout and the whole stimulus trace are generated from the seed before the run
+(the trace hash is recorded), and agents draw from per-agent random streams. Message interleavings
+still depend on asyncio scheduling, so results are means over seeds.
 
 ## 7. Parameters and rules changed from the analysis
 
 | Item | Analysis | Now | Why |
 |---|---|---|---|
-| `W_max` P1 / P2 | 30 s / 60 s | 45 s / 75 s | The wearer prompt lasts 30 s; the third OS4 branch could never complete in 30 s |
-| Prior P(real \| candidate) | — | 0.15 | Calibrated so the targets in §4.1 hold |
-| Likelihood ratios | — | `scenarios/defaults.toml` | The analysis fixed the method, not the numbers |
-| Priority under conflicting evidence | not specified | most severe active source; incoherent triage, or triage that contradicts the witness's own report, re-asked once | Safety (RNF5); see §4.1 |
-| Retraction threshold | not specified | belief < 0.3 after a human cancellation | P07 needs a trigger |
-| Merging alerts (`_MergeCandidates`) | same candidate | same cell, within 90 s and areas at most 100 m apart | Merging by cell fused different patients in C3 (02 §D7) |
-| N_need(p) | named, no value | P1: 2, P2: 1 | OL8 |
-| Retries | "deadlines and repetition" | resend after 20 s, at most twice; triage deadline 12 s | F5; witnesses answer in 3–10 s, so a retry fits inside W_max(P1) |
-| EMS response | — | 240 s + 30 km/h | ~6–9 min in C1. An assumption: we found no source for urban Portuguese response times, which is a stated limitation |
-| Enumerated values | Portuguese | English | They are code identifiers; the mapping is in 04 §5 |
-| Drifting sensors in C2 | "some sensors with drift" | 3 false positives per hour, half never answered by the wearer (`drift_p_no_response = 0.5`) | With 1 per hour, all answered, the wearer's "I'm fine" filtered every drifting false positive. With 1 per hour and half unanswered, the same device repeated only 0.2 times per run (seeds 1–10), too rarely for reputation to act within 60 min |
-| Robustness M12 | degradation of M3–M5 with x % message loss | C1 with 10 % and 20 % loss on phone links, plus recovery time after the C4 hub crash | The recovery time alone is set by the lease (15 s + 5 s) and does not measure degradation |
+| `W_max` P1 / P2 | 30 s / 60 s | 45 s / 75 s | The 30 s wearer prompt left no time for the third OS4 branch |
+| Prior, likelihood ratios | method only | 0.15; `defaults.toml` | Calibrated so the targets of §4.1 hold |
+| Priority under conflict | not specified | most severe source; contradicting triage re-asked once | Safety (§4.1, §9.3) |
+| Retraction | not specified | belief < 0.3 after a human cancellation | P07 needs a trigger |
+| Alert merging | same candidate | same cell, within 90 s, areas ≤ 100 m apart | Merging by cell fused patients in C3 (§7.1) |
+| N_need(p) | named | P1: 2, P2: 1 | OL8 |
+| Retries | "deadlines and repetition" | resend after 20 s, at most twice; triage deadline 12 s | F5, fits inside W_max(P1) |
+| EMS response | — | 240 s + 30 km/h | ~6–9 min in C1; we found no source for Portuguese urban times |
+| Drifting sensors (C2) | "some sensors with drift" | 3 per hour, half unanswered | With fewer, the same device repeated too rarely for reputation to act in 60 min |
+| Robustness M12 | degradation with message loss | C1 with 10 % and 20 % loss, plus recovery after the C4 crash | Recovery alone is fixed by the lease |
 
-Time metrics are computed over **detectable** incidents (a wearable or a witness was present).
-An incident with neither can only be caught by a 112 call, which is not simulated (A7). It still
-counts against recall.
+Time metrics cover **detectable** incidents (a wearable or a witness present); the others can only be
+caught by a 112 call, which is not simulated (A7), and still count against recall.
 
-**Why a P1/P2 was missed** (`src/cemr/metrics/misses.py`, key `M2_missed` in `summary.json`). Recall
-alone does not say where an incident was lost, so after each run every P1/P2 without a declared case at
-the patient gets one reason. The alerts of its own device and witness are followed through the event
-log, including P26 merges into another hub's candidate, and the incident gets the furthest point any of
-them reached:
+**Why a P1/P2 was missed** (`src/cemr/metrics/misses.py`). After each run, each P1/P2 without a declared
+case at the patient gets the furthest point its alerts reached in the event log, P26 merges included.
+`experiments/analyse.py` sums the reasons in `results/misses.md`.
 
 | Reason | Meaning |
 |---|---|
-| `undetectable` | No wearable and no witness: only a 112 call would catch it (A7) |
-| `not_reported` | No source sent an alert (the witness chose not to report, or the sensor missed it) |
-| `alert_lost` | An alert was sent, but no hub opened or joined a candidate with it |
-| `discarded_low_belief` | Discarded because the belief fell below `discard_below` |
-| `discarded_as_p3` | `W_max` expired with the candidate at P3 (from the triage or the alert type), whose threshold is the highest |
+| `undetectable` | No wearable and no witness |
+| `not_reported` | No source sent an alert |
+| `alert_lost` | An alert was sent but no hub opened or joined a candidate with it |
+| `discarded_low_belief` | Belief fell below the discard threshold |
+| `discarded_as_p3` | `W_max` expired with the candidate at P3, whose threshold is the highest |
 | `discarded_window` | `W_max` expired without reaching the threshold or meeting OS4 |
-| `undecided_at_end` | The run ended while the candidate was still being verified |
-| `declared_p3` | Declared as P3: contact only, no dispatch and no location request |
-| `retracted` | Declared, then retracted (P07) before the location arrived |
-| `not_located` | Declared as P1/P2, but the precise location (P24) never arrived |
-| `other_incident` | Declared and located, but matched to another patient (alerts of two patients fused into one case) |
-
-The counts add up to the P1/P2 incidents that recall counts as missed. The diagnosis reads only the log,
-after the run, so it does not change the agents. `experiments/analyse.py` sums it over seeds in
-`results/misses.md`.
+| `undecided_at_end` | The run ended during verification |
+| `declared_p3` | Declared as P3: contact only |
+| `retracted` | Retracted (P07) before the location arrived |
+| `not_located` | Declared P1/P2 but the location (P24) never arrived |
+| `other_incident` | Declared and located, but at another patient (two patients fused into one case) |
 
 ### 7.1 Design changes driven by the experiments
 
-Three changes to the design came from reading the results of earlier matrices. Each is measured on the
-same seeds before and after, for the variant "ours" (`experiments/evolution.py`, `results/evolution.md`).
-The data come from the `results/runs.csv` kept in git at each step, and each row names the code commit
-that produced its runs. More than one change may lie between two commits, so a row shows the effect of
-everything in between, not of one change alone.
+Three changes came from reading earlier matrices. Each is measured on the same seeds before and after,
+for the variant "ours" (`experiments/evolution.py`, `results/evolution.md`). More than one change may lie
+between two commits, so a row shows the effect of everything in between.
 
 | Change | Scenario, metric | Before | After | After − before | Seeds |
 |---|---|---|---|---|---|
@@ -545,133 +380,77 @@ everything in between, not of one change alone.
 | A source counts once per candidate | C5, M2 false dispatches (per run) | 3.0 ± 0.7 at `67a012b` | 3.0 ± 0.7 at `de13290` | +0.0 ± 0.0 | 1–10 |
 | A source counts once per candidate | C5, M2 precision (%) | 26.6 ± 14.0 at `67a012b` | 28.3 ± 15.0 at `de13290` | +1.7 ± 3.8 | 1–10 |
 
-**Merging by area.** With merging by cell, two patients who collapsed in the same cell within the merge
-window ended in one case, and the second was never dispatched (02 §D7). Merging by a 100 m area raised the
-C3 recall by 13.5 points. Between `6df23fb` and `67a012b` the P26 answer also became symmetric and the
-code was simplified, so part of the difference may come from those changes. Three P1/P2 incidents are still
-fused with another patient (`other_incident` in `results/misses.md`).
-
-**Triage that contradicts the report.** In the `67a012b` matrix a witness who reported a collapse and then
-answered "responds" lowered the case to P3, whose threshold a lone witness cannot reach (§4.1). Asking the
-two key questions again raised both C3 recalls by about 4.5 points, with confidence intervals that exclude
-zero. The miss diagnosis (`misses.py`, run over the event logs of both matrices) shows where the gain comes
-from: over seeds 1–10, `discarded_as_p3` went from 3 to 0 and `discarded_window` from 1 to 0, while the
-other reasons did not change. The `67a012b` event logs are not in git (`runs/` is ignored), so this
-count can only be repeated on the machine that kept them.
-
-**One source counts once.** A drifting device that fired twice within 12 s raised the belief from 0.26 to
-0.39 with no new source (§4.1). In C5 the change had no measurable effect: every false dispatch there comes
-from a prankster witness (`false dispatches from sensors only` is 0 in `results/summary.md`), and a
-witness sends one report per incident, so there was nothing to count twice. The scenario where it matters
-is C2, with its drifting sensors, but C2 itself changed between the two matrices (more unanswered false
-positives, §7), so the two C2 results cannot be compared. The change stays because it is correct
-evidence fusion (independent sources, 02 §D5), not because the experiments show a gain.
-
-The rule and its effect come from the same pair of commits for the second and third changes, so the
-metrics alone cannot separate them. We measure each in the scenario where it can act: C3 for the triage
-and C5 for repeated sources.
+Merging by cell put two patients of the same cell into one case. Between `6df23fb` and `67a012b` the P26
+answer also became symmetric, so part of the gain may come from that. Re-asking a contradicting triage
+removed the C3 misses `discarded_as_p3` (3 to 0) and `discarded_window` (1 to 0) over seeds 1–10; the
+`67a012b` event logs are not in git, so this count can only be repeated where they were kept. Counting a
+source once had no effect in C5, because every false dispatch there comes from a prankster witness who
+sends one report per incident. It stays because it is the correct fusion of independent evidence, not
+because of a measured gain.
 
 ## 8. How the design is checked
 
 | Check | What it covers |
 |---|---|
-| Unit tests (`tests/test_*.py`, 95 tests, `pytest -m "not slow"`) | Fusion and OS4; the priority rule; triage that contradicts the report; alert merging by area and the P26 decision; Contract Net; late awards, uncovered tasks and surplus release (OL6, OL8); unanswered drifting false positives; disclosure; AED custody; reputation with gossip and decay; guidance steps; Larsen; network FIFO; trace reproducibility; the C5 pranksters; payload round trips, the FIPA envelope and the `not-understood` reply; the metrics; the rule checker catching injected violations |
-| End-to-end tests (`tests/test_end_to_end.py`) | C1: the OL1 sequence, OL2, OL7, OS5, zero rule violations, valid run. C4: the takeover of a crashed hub's case within 40 s, P28 reaching participants, the crashed hub silent, no orphaned cases |
-| Rule checker (`python -m cemr.metrics.check runs/<run>`) | Re-derives OS1–OS6, OS8, OS9, OS11–OS13, OL1–OL3, OL5–OL7, OL9 and DUP (no duplicate cases) from the audit log after every run. It runs inside `run.py` and is reported in `summary.json` |
-| Validity checks (`run.py`) | Discards runs in which the machine slept or the event loop stalled |
-| Code version (`run.py`, `run_matrix.py`, `analyse.py`) | Every summary records the git commit; the matrix refuses to start with uncommitted changes and the analysis refuses a `runs.csv` that mixes commits |
+| Unit tests (`pytest -m "not slow"`, 95 tests) | Fusion, OS4 and the priority rule; alert merging and P26; Contract Net, OL6 and OL8; disclosure; AED custody; reputation; guidance; network FIFO; trace reproducibility; payloads, the FIPA envelope and `not-understood`; the metrics; the rule checker on injected violations |
+| End-to-end tests (`tests/test_end_to_end.py`) | C1: OL1, OL2, OL7, OS5, no rule violations, valid run. C4: takeover of a crashed hub's case within 40 s, no orphaned cases |
+| Rule checker (`python -m cemr.metrics.check runs/<run>`) | OS1–OS6, OS8, OS9, OS11–OS13, OL1–OL3, OL5–OL7, OL9 and DUP from the audit log, after every run |
+| Validity and version (`run.py`, `run_matrix.py`, `analyse.py`) | Runs where the machine slept are discarded; every summary records the commit and the analysis refuses mixed commits |
 
-**OS9** (only a P3 commitment may be preempted, for a P1) holds vacuously: P3 cases get contact and
-guidance but no ambulance (analysis §2.2), so there is nothing to preempt. The checker verifies that
-no P3 case ever receives an ambulance.
+OS9 holds vacuously: P3 cases get no ambulance, so nothing is preempted. The checker verifies that no
+P3 case receives one.
 
 ## 9. Positioning against the course concepts
-
-This section names, in the terms of the course, what the design does. It also says where the design
-stops short of a textbook mechanism.
 
 ### 9.1 Agent types and architectures
 
 | Agent | Type (Russell and Norvig, 2022) | Why |
 |---|---|---|
-| `CitizenDeviceAgent` | Model-based reflex | Keeps a small state (`recent_alerts`) and acts by fixed rules: detection thresholds and the alert policy |
-| `VolunteerAgent` | Utility-based | The app picks the AED and computes the ETA that minimise arrival time; accepting a call is a stochastic human model (`p_accept`) |
-| `EMSAgent` | Utility-based | Bids its ETA and serves the case it is awarded |
-| `AEDHubAgent` | Hybrid, layered (Wooldridge, 2009) | Reactive layer: the router, AED custody and heartbeats answer at once. Deliberative layer: one FSM per case, with log-odds fusion of evidence and a Contract Net |
-| `BystanderAgent` | Human model plus the guidance app | Layered behaviour: fatigue and giving up override the current instruction, much as a higher layer suppresses a lower one in a subsumption architecture |
+| `CitizenDeviceAgent` | Model-based reflex | Small state (`recent_alerts`), fixed rules |
+| `VolunteerAgent` | Utility-based | Picks the AED and ETA that minimise arrival; accepting is a stochastic human model |
+| `EMSAgent` | Utility-based | Bids its ETA |
+| `AEDHubAgent` | Hybrid, layered (Wooldridge, 2009) | Reactive layer (router, AED custody, heartbeats) and deliberative layer (one FSM per case, fusion, Contract Net) |
+| `BystanderAgent` | Human model plus guidance app | Fatigue and giving up override the current instruction, like a higher layer in a subsumption architecture |
 
-The environment is partially observable (the hub never sees a patient), stochastic, dynamic,
-sequential, continuous and multi-agent. The agents cooperate, except the false sources of C5, which
-do not.
+The environment is partially observable, stochastic, dynamic, sequential, continuous and multi-agent.
+The hub could be read as BDI: beliefs are the fused belief and the trust table, desires the open
+candidates, intentions the awarded commitments, kept until achieved or believed impossible
+(single-minded commitment). We kept plain SPADE behaviours because every protocol deadline stays
+explicit and testable, and every decision is an event that the rule checker can re-read.
 
-**Why not BDI.** The hub could be read as a BDI agent:
+### 9.2 The Contract Net as an auction
 
-- beliefs are the fused `Belief` of each candidate and the `TrustTable`;
-- desires are the open candidates;
-- intentions are the awarded commitments, kept until the volunteer is on scene, released or failed.
-  This is single-minded commitment in Wooldridge's terms: an intention is dropped only when it is
-  achieved or believed impossible (failure, or late past ETA + δ).
+The volunteer Contract Net is a reverse sealed-bid auction with a scoring rule: the bid is the ETA,
+the score divides it by trust and the lowest wins (`contract_net.offer_score`). It is not a Vickrey
+auction, because a second-price rule needs payments and there are none. Truthful bidding is encouraged
+ex post by reputation (late arrival past ETA + δ gives a negative label), so a volunteer could
+under-declare by up to δ = 120 s at no cost; the ETA is computed by the app, which softens this. Widening
+to ring 2 and OL6 open new rounds with new participants, which is not the FIPA Iterated Contract Net.
+Winner determination is greedy, while volunteer-plus-AED bundles make the optimum combinatorial; M9
+bounds the cost (§4.2). The ambulance call is a first-price rule on ETA, again without payments.
 
-We kept plain SPADE behaviours instead of a BDI interpreter for two reasons. First, every deadline of
-the protocols (W_max, proposal and triage deadlines, leases) is explicit in the code and can be unit
-tested. Second, the organisational rules are re-checked on the audit log after each run, which needs
-every decision to be an event, not a step of a reasoning cycle.
+### 9.3 Aggregating priorities
 
-### 9.2 The Contract Net as an auction (mechanism design)
-
-- **Type.** The volunteer Contract Net (P08/P09) is a **reverse sealed-bid auction with a scoring
-  rule**. The bid is the ETA. The score is `ETA × (qualification penalty) / (trust / prior)` and the
-  lowest wins (`contract_net.offer_score`). There are no prices and no payments.
-- **Incentives.** It is **not** a Vickrey auction: a second-price rule needs payments, and there are
-  none. Truthful bidding is encouraged ex post by reputation: a volunteer who arrives after ETA + δ
-  gets a negative P21 label, and its future scores are divided by a lower trust. With δ = 120 s a
-  volunteer could under-declare its ETA by up to two minutes at no cost. This is a limitation, softened
-  by the fact that the ETA is computed by the volunteer's app, not typed by the person.
-- **Rounds.** Widening the call to ring 2 (D3) and the re-allocation of OL6 open **new rounds with new
-  participants**. This is not the FIPA Iterated Contract Net, in which the initiator sends a revised
-  call to the same participants.
-- **Winner determination.** `assign` is greedy: the FETCH_AED task first (the best bid whose AED can be
-  reserved), then the GO_TO_PATIENT tasks, one task per volunteer, at most N_max. A volunteer and an
-  AED form a bundle, so the optimal allocation is a combinatorial problem. Metric M9 from the
-  declaration bounds from above what the greedy choice and the privacy-preserving ETA (to the cell
-  centre) cost; it also contains refusals and the proposal deadline (§4.2).
-- **Ambulance (P10).** A first-price rule on ETA alone, again without payments.
-
-### 9.3 Aggregating priorities (social choice)
-
-`case_priority` aggregates the priorities that the sources of a case support with a **maximum
-severity** rule, a precautionary veto: the case takes the most severe priority that any active source
-supports.
-
-Example: three sources support P3 and one supports P1.
+`case_priority` uses a **maximum severity** rule: the case takes the most severe priority that any
+active source supports. With three sources at P3 and one at P1:
 
 | Rule | Result |
 |---|---|
 | Plurality | P3 |
-| Borda, with each source ranking the priorities by distance to its own (2, 1, 0 points) | P3 (6 points against 4 for P2 and 2 for P1) |
-| Condorcet winner (pairwise majority) | P3 (beats P2 and P1 three to one) |
+| Borda (2, 1, 0 points by distance to each source's priority) | P3 (6 against 4 for P2 and 2 for P1) |
+| Condorcet winner | P3 (beats P2 and P1 three to one) |
 | Ours (maximum severity) | P1 |
 
-- **Properties it keeps.** Unanimity (if every source supports the same priority, that is the result)
-  and anonymity (the result does not depend on which source said what).
-- **Properties it breaks.** The majority criterion and the Condorcet winner, as the example shows. It is
-  also manipulable: a single source can raise the priority. OS4 limits the damage, because a
-  declaration still needs independent evidence, and so does reputation (scenario C5).
-- **Why.** Safety (RNF5): treating a P1 as a P3 is far more costly than the opposite. An earlier
-  version let a witness's triage decide, and a 10 % observation error turned a P1 detected by a cardiac
-  sensor into a P3 that was never dispatched (§4.1).
-- **One exception.** A witness's triage may lower its own report, but never another source's, and only
-  after the hub asked the key questions a second time (§4.1).
-- **What the comparison is worth.** The sources give evidence about one patient, not preferences over
-  outcomes, so this is not a social choice problem in the strict sense. The maximum rule is a decision
-  under asymmetric costs; the comparison with plurality, Borda and Condorcet shows what a majority rule
-  would have done.
+The rule keeps unanimity and anonymity but breaks the majority criterion and the Condorcet winner, and
+a single source can raise the priority. OS4 and reputation limit that manipulation (C5). We accept it
+for safety: treating a P1 as P3 costs far more than the opposite, and an early version that let the
+witness's triage decide lost a P1 detected by a cardiac sensor. A witness's triage may still lower its
+own report after being asked twice (§4.1). The sources give evidence about one patient, not preferences,
+so this is a decision under asymmetric costs; the comparison shows what a majority rule would have done.
 
 ## References
 
 - Jøsang, A., & Ismail, R. (2002). The Beta Reputation System. *15th Bled Electronic Commerce Conference*.
-- Larsen, M. P., Eisenberg, M. S., Cummins, R. O., & Hallstrom, A. P. (1993). Predicting survival from
-  out-of-hospital cardiac arrest: a graphic model. *Annals of Emergency Medicine*, 22(11), 1652–1658.
 - Russell, S., & Norvig, P. (2022). *Artificial Intelligence: A Modern Approach* (4th ed.). Pearson.
 - Shoham, Y., & Leyton-Brown, K. (2008). *Multiagent Systems: Algorithmic, Game-Theoretic, and Logical
   Foundations*. Cambridge University Press.

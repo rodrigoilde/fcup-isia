@@ -1,0 +1,609 @@
+\documentclass[10pt,a4paper]{article}
+
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[utf8]{inputenc}
+  \usepackage[T1]{fontenc}
+  \usepackage{lmodern}
+\else
+  \usepackage{fontspec}
+\fi
+\usepackage[portuguese]{babel}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xltabular}
+\usepackage{enumitem}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=1pt,topsep=3pt}
+\renewcommand{\arraystretch}{1.12}
+\setlength{\parskip}{2pt}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{T}{>{\ttfamily\raggedright\arraybackslash}X}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% Expressões de liveness: nome à esquerda, expressão à direita.
+\newenvironment{liveness}
+  {\par\smallskip\noindent\small
+   \tabularx{\linewidth}{@{\hspace{1em}}>{\ttfamily}l@{\hspace{0.5em}=\hspace{0.5em}}>{\ttfamily\raggedright\arraybackslash}X@{}}}
+  {\endtabularx\par\smallskip}
+\newcommand{\om}{$^{\omega}$}
+\newcommand{\id}[1]{\texttt{#1}}
+
+\title{Análise Gaia\\[0.4em]\large Resposta médica de emergência comunitária descentralizada\\ISIA 2026/27, trabalho prático 1, tópico O}
+\author{Rodrigo Dias (202407281) \and Francisco Machado (202403514)}
+\date{FCUP, outubro de 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Enquadramento}\label{sec:enquadramento}
+
+Este documento é a fase de análise da metodologia Gaia, na versão estendida de Zambonelli et al.\ (2003), que acrescenta ao Gaia original as sub-organizações, o modelo do ambiente e as regras organizacionais. Organiza os requisitos em cinco modelos (sub-organizações, ambiente, papéis, interações e regras organizacionais) sem escolher ainda a estrutura organizacional nem os agentes. Essas escolhas pertencem ao design arquitetural (\path{02-architectural-design.md}) e ao design detalhado (\path{03-detailed-design.md}).
+
+O objetivo do sistema, dado pelo enunciado, é detetar incidentes médicos críticos a tempo, verificá-los localmente e despachar os socorristas capazes mais próximos, orientando as testemunhas e preservando a privacidade, sem despachante central.
+
+\paragraph{Notação.} Nas expressões de liveness, \id{x . y} é sequência, \id{x | y} alternativa, \id{x*} zero ou mais vezes, \id{x+} uma ou mais, \id{(x)}\om{} repetição indefinida, \id{[x]} opcional e \id{x || y} execução intercalada. Os protocolos estão em CamelCase e as atividades (ações sem interação) têm o prefixo \id{\_}. As permissões são \id{reads}, \id{changes}, \id{consumes} e \id{generates}. As responsabilidades de liveness dizem o que um papel tem de fazer acontecer; as de safety são invariantes que nunca podem ser violados. Os identificadores (papéis, protocolos, recursos e valores enumerados) estão em inglês, iguais aos do código; o texto está em português.
+
+\section{Requisitos de entrada}\label{sec:requisitos}
+
+O Gaia parte de requisitos já recolhidos. Como o enunciado é aberto, fixámos 14 requisitos funcionais, 9 não funcionais e 8 pressupostos.
+
+\subsection{Contexto do domínio}\label{sec:contexto}
+
+O caso mais exigente é a paragem cardiorrespiratória extra-hospitalar (PCR-EH). Sem RCP nem desfibrilhação, a probabilidade de sobreviver cai cerca de 7 a 10~\% por minuto (CARES, 2026). O modelo de Larsen et al.\ (1993), para PCR em fibrilhação ventricular, dá 67~\% menos 2,3 pontos por minuto até à RCP, 1,1 por minuto até à desfibrilhação e 2,1 por minuto até ao suporte avançado; usamo-lo como proxy na métrica M6.
+
+Já existem sistemas de voluntários, todos com despacho central. Na Holanda (HartslagNu) são alertados os voluntários num raio de 2~km, e quem está perto de um DAE é enviado primeiro ao DAE. Na Suécia e na Dinamarca são notificados até 30 e 20 voluntários num raio de cerca de 1,8~km. No ensaio sueco SAMBA, mandar voluntários buscar o DAE em vez de iniciarem a RCP não aumentou significativamente o uso de DAE. O que o nosso sistema acrescenta é fazer a deteção, a verificação e a alocação entre pares, sem um centro de despacho.
+
+\subsection{Classes de incidente}\label{sec:classes}
+
+\noindent\begin{tabularx}{\linewidth}{@{}lLLL@{}}
+\toprule
+Prioridade & Situação & O que é preciso & Evidência típica \\
+\midrule
+P1 & Suspeita de PCR: não responde e não respira normalmente & RCP imediata, DAE e ambulância & Queda, imobilidade e sinal cardíaco ausente; testemunha confirma ``não responde, não respira'' \\
+P2 & Inconsciente mas a respirar, queda grave, suspeita de AVC & Ambulância e um socorrista para vigiar & Queda e imobilidade com sinais vitais \\
+P3 & Queda sem gravidade, pessoa consciente & Contacto e orientação; voluntário só a pedido & O portador responde à verificação \\
+\bottomrule
+\end{tabularx}
+
+A prioridade é uma triagem operacional para alocar recursos, não um diagnóstico clínico.
+
+\subsection{Requisitos funcionais}\label{sec:rf}
+
+\noindent\begin{tabularx}{\linewidth}{@{}lL@{\hspace{1.5em}}lL@{}}
+\toprule
+RF1 & Detetar candidatos a partir de sensores e de relatos & RF8 & Acompanhar os socorristas e realocar perante falhas \\
+RF2 & Corroborar cada candidato, pesando a fiabilidade das fontes & RF9 & Orientar as testemunhas passo a passo no SBV e no DAE \\
+RF3 & Classificar por prioridade (P1--P3), com confiança & RF10 & Passagem de informação testemunha, voluntário, EMS \\
+RF4 & Cancelar falsos alarmes e retratar declarações precoces & RF11 & Encerrar o caso, libertar recursos, registar o desfecho \\
+RF5 & Alocar socorristas e ambulâncias sem despachante central & RF12 & Atualizar a confiança a partir dos desfechos \\
+RF6 & Despacho duplo: ao doente e a buscar um DAE & RF13 & Consentimento e divulgação mínima de dados pessoais \\
+RF7 & Gerir reservas, levantamento e estado dos DAE & RF14 & Registar o necessário para as métricas \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Requisitos não funcionais}\label{sec:rnf}
+
+\noindent\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+RNF1 & Rapidez: verificação em segundos; voluntário e DAE antes da EMS sempre que possível \\
+RNF2 & Robustez: sem ponto único de falha; tolerar perda de mensagens, falhas de agentes e zonas sem rede \\
+RNF3 & Escalabilidade: incidentes simultâneos, dezenas a centenas de agentes \\
+RNF4 & Privacidade: minimização, pseudónimos, localização precisa só para quem ajuda, retenção limitada; dados de saúde com base nos interesses vitais (RGPD, art.~9.º, n.º~2, al.~c) \\
+RNF5 & Safety: orientação só segundo o protocolo de SBV; a ambulância nunca é cancelada só com evidência automática \\
+RNF6 & Equidade: carga distribuída entre voluntários e tempos comparáveis entre zonas \\
+RNF7 & Fadiga de alertas: limitar alertas por voluntário, sobretudo falsos \\
+RNF8 & Auditabilidade: cada decisão registada com a sua justificação \\
+RNF9 & Reprodutibilidade: cenários parametrizados e seeds fixas \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Pressupostos e simplificações}\label{sec:pressupostos}
+
+A1: a cidade é um grafo com tempos de deslocação por modo e uma partição em células. A2: sensores simulados com taxas configuráveis de verdadeiros e falsos positivos e deriva. A3: comunicação XMPP (SPADE) com atraso, perda e zonas sem rede injetados pela simulação. A4: o estado do doente é um modelo simples dependente dos tempos até RCP, DAE e EMS. A5: testemunhas com probabilidades de existir, ajudar e cumprir instruções. A6: voluntários com qualificação declarada e probabilidades de aceitar e comparecer. A7: o sistema complementa o 112, não o substitui. A8: não se usam dados reais de pessoas. Ficam fora do âmbito o diagnóstico clínico, a integração real com o 112/INEM, a navegação GPS e o hardware dos sensores.
+
+\section{Sub-organizações}\label{sec:suborg}
+
+O critério do Gaia é encontrar partes que perseguem um sub-objetivo, interagem pouco com o resto e exigem competências próprias.
+
+\noindent\begin{tabularx}{\linewidth}{@{}P{2.6cm}LLl@{}}
+\toprule
+Sub-organização & Sub-objetivo & Competências próprias & Escala \\
+\midrule
+SO-DV Deteção e Verificação & Transformar sinais ruidosos em incidentes verificados, com precisão, recall e pouca latência & Processamento local de sinal, fusão de evidência, ponderação por confiança & segundos \\
+SO-DR Despacho e Resposta & Pôr RCP, DAE e ambulância junto do doente no menor tempo & ETA, Contract Net, compromissos, reserva de recursos & segundos a minutos \\
+SO-AT Apoio a Testemunhas & Maximizar a rapidez e a qualidade do SBV leigo até chegar ajuda & Protocolo de SBV, interação com humanos & segundos a minutos \\
+SO-CP Confiança e Privacidade & Manter a fiabilidade das fontes, aplicar as políticas de divulgação, responsabilizar & Reputação, consentimento, auditoria & por pedido e pós-incidente \\
+\bottomrule
+\end{tabularx}
+
+SO-DV e SO-DR têm objetivos diferentes (certeza contra velocidade de chegada) e ligam-se por uma única passagem de testemunho: declarar ou retratar um caso. SO-AT é separada porque a orientação tem de começar antes de a verificação terminar e continuar sem rede. SO-CP é transversal e trabalha noutra escala temporal; isolá-la torna as regras de privacidade e de confiança auditáveis num só sítio. Rejeitámos sub-organizações geográficas, porque são uma escolha de topologia que o Gaia adia para o design, e uma divisão por tipo de agente, que espelharia os agentes e não os objetivos.
+
+\section{Modelo do ambiente}\label{sec:ambiente}
+
+Seguindo o Gaia, modelamos como recurso o que só fornece dados e agentificamos o que tem comportamento próprio ou envolve humanos: a inteligência no dispositivo do cidadão, as testemunhas, os voluntários e o armário do DAE (cujo estado visível é o recurso \id{aedRegistry}). O doente é um recurso dinâmico e a verdade de referência (\id{groundTruth}) só serve a avaliação.
+
+\subsection{Recursos}\label{sec:recursos}
+
+\begin{xltabular}{\linewidth}{@{}>{\ttfamily}lLP{3.6cm}l@{}}
+\toprule
+\normalfont Recurso & Conteúdo & Acesso & Sensib. \\
+\midrule
+\endhead
+roadNetwork & Grafo da cidade, tempos por modo, partição em células & leitura & pública \\
+guidanceProtocol & Algoritmo de SBV/DAE (estático) & leitura & pública \\
+simClock & Tempo simulado & leitura & -- \\
+sensorStream[d] & Leituras brutas do dispositivo \id{d} & só no próprio dispositivo & muito alta \\
+wearerResponse[d] & Resposta ou silêncio do portador ao ``Está bem?'' & leitura no dispositivo & alta \\
+consentPolicy[s] & Preferências de partilha do titular \id{s} & leitura & alta \\
+subjectData[s] & Identidade, localização precisa, dados clínicos & só o guardião do titular & muito alta \\
+candidateAlert[k] & Tipo, confiança local, célula, instante, pseudónimo & criação, consumo & média \\
+incidentCase[c] & Prioridade, confiança, estado, evidências, adjudicações; a localização só entra por P24 & criação, alteração, leitura parcial & alta \\
+guidanceLog[c] & Instruções dadas, respostas e tempos & criação, leitura & alta \\
+aedRegistry & Por DAE: posição, horário, estado (AVAILABLE, RESERVED, IN\_USE, UNAVAILABLE) & leitura; alteração só pelo próprio DAE & pública \\
+aedAccessCode[a] & Código de uso único ligado a uma reserva & criação, consumo & alta \\
+responderState[v] & Disponibilidade, qualificação, compromisso e posição & alteração só pelo próprio & alta \\
+emsState[u] & Estado (AVAILABLE, EN\_ROUTE, ON\_SCENE, TRANSPORT) e posição & alteração só pela própria & média \\
+patientCondition[c] & Responde? Respira? Ritmo desfibrilhável? Sobrevivência estimada & observável só no local & muito alta \\
+trustTable[i] & Confiança do agente \id{i} por pseudónimo & alteração pelo próprio & média \\
+auditLog & Registo só de acréscimo das decisões e divulgações & acréscimo, leitura & média \\
+groundTruth & Incidentes reais, instante do colapso, ritmo & nenhum papel & -- \\
+\bottomrule
+\end{xltabular}
+
+\subsection{Topologia}\label{sec:topologia}
+
+A cidade é um grafo dividido em células, usadas para localização grosseira e para endereçar alertas. DAE e bases de ambulância estão em nós fixos; cidadãos e voluntários movem-se. O acesso é localizado: \id{sensorStream} só existe no dispositivo, \id{patientCondition} só se observa no local e \id{aedAccessCode} só se usa no armário. Quem precisa destes recursos sem acesso direto passa por um protocolo (secção~\ref{sec:matriz}).
+
+\subsection{Dinâmica}\label{sec:dinamica}
+
+Os incidentes seguem um processo de Poisson por célula e hora, com picos em eventos, e uma mistura de P1, P2 e P3. Os sensores têm verdadeiros e falsos positivos e deriva; as testemunhas podem existir, ajudar, cansar-se e desistir; os voluntários podem aceitar, faltar ou atrasar-se; os DAE podem estar fechados ou avariados; a rede tem latência, perda e zonas sem cobertura; a sobrevivência do doente desce com os tempos até RCP, DAE e EMS (Larsen). Estes parâmetros distinguem os cenários da secção~\ref{sec:cenarios}.
+
+\section{Modelo preliminar de papéis}\label{sec:papeis}
+
+Doze papéis cobrem as competências de que a organização precisa, seja qual for a estrutura escolhida depois. No design fecham-se alguns parceiros e podem surgir papéis ditados pela estrutura.
+
+\subsection{Resumo}\label{sec:papeis-resumo}
+
+\begin{xltabular}{\linewidth}{@{}l>{\ttfamily}llLP{3.1cm}@{}}
+\toprule
+\# & \normalfont Papel & SO & Missão & Protocolos \\
+\midrule
+\endhead
+R1 (SM) & SensorMonitor & DV & Deteta eventos no dispositivo e emite alertas & P01--P03 \\
+R2 (WR) & WitnessReporter & DV & Reporta um colapso e responde à triagem & P01--P04 \\
+R3 (IV) & IncidentVerifier & DV & Corrobora, funde evidência, declara ou descarta & P01--P07, P20, P22 \\
+R4 (IC) & IncidentCoordinator & DR & Dono do caso: ambulância, alocação, acompanhamento, fecho & P05--P11, P13--P15, P20--P22, P24 \\
+R5 (VR) & VolunteerResponder & DR & Vai ao doente, faz SBV, passa o testemunho & P08, P09, P13, P14, P18, P19 \\
+R6 (AR) & AEDRunner & DR & Levanta um DAE reservado e leva-o ao local & P08, P09, P12--P14 \\
+R7 (AC) & AEDCustodian & DR & Reserva, desbloqueia e mantém o estado do DAE & P11, P12, P20 \\
+R8 (EU) & EMSUnit & DR & Propõe ETA e assume os cuidados & P10, P13, P14, P19, P20, P24 \\
+R9 (BG) & BystanderGuide & AT & Orienta o SBV passo a passo & P05, P13, P15--P20 \\
+R10 (OH) & OnSceneHelper & AT & Testemunha que executa as instruções & P16--P18 \\
+R11 (RM) & ReputationManager & CP & Mantém a confiança em fontes e socorristas & P21--P23 \\
+R12 (PG) & PrivacyGuardian & CP & Decide o que divulgar e apaga no fim & P20, P24 \\
+\bottomrule
+\end{xltabular}
+
+As secções seguintes dão, para cada papel, a descrição, a expressão de liveness e as responsabilidades de safety. As permissões de todos os papéis estão condensadas na matriz da secção~\ref{sec:matriz}.
+
+\subsection{Esquemas de papel: deteção, verificação e despacho (R1--R6)}\label{sec:esquemas1}
+
+\paragraph{R1 SensorMonitor (SO-DV).} Corre no dispositivo de um cidadão. Lê os sinais localmente, deteta eventos candidatos (queda seguida de imobilidade, sinal cardíaco ausente ou anómalo), pergunta ao portador se está bem e responde a pedidos de corroboração só com evidência resumida. Com \id{ConfirmFirst} só alerta se o portador não responder (menos falsos alarmes, mais atraso); com \id{AlertFirst} alerta logo e cancela se o portador responder.
+\begin{liveness}
+SENSORMONITOR & (Watch)\om{} || (CorroborationRequest)\om \\
+Watch & \_ReadSignals+ . \_DetectEvent . (ConfirmFirst | AlertFirst) \\
+ConfirmFirst & \_PromptWearer . [RaiseCandidateAlert] \\
+AlertFirst & RaiseCandidateAlert . \_PromptWearer . [CancelAlert] \\
+\end{liveness}
+\textit{Safety.} Os sinais brutos nunca saem do dispositivo; um alerta leva só a célula e um pseudónimo; se o portador responder ``estou bem'' a um alerta já emitido, segue sempre \id{CancelAlert}.
+
+\paragraph{R2 WitnessReporter (SO-DV).} Cidadão presente que reporta um colapso ou é contactado para confirmar um alerta próximo. A triagem que responde segue os primeiros passos do SBV (local seguro? responde? respira normalmente? já ligou 112?), por isso confirmar e começar a ajudar coincidem.
+\begin{liveness}
+WITNESSREPORTER & (Report)\om \\
+Report & \_ObserveScene . (RaiseCandidateAlert | CorroborationRequest) . TriageQuestionnaire* . [CancelAlert] \\
+\end{liveness}
+\textit{Safety.} Nunca recebe a identidade nem dados clínicos do doente; o silêncio conta como ``não sei''; o mesmo cidadão conta como uma só fonte, mesmo com vários relatos ou dispositivos.
+
+\paragraph{R3 IncidentVerifier (SO-DV).} Junta os alertas do mesmo colapso, abre uma janela de corroboração cuja duração depende da prioridade provisória, pede evidência a fontes próximas, funde-a pesada pela confiança e declara ou descarta. Se houver uma testemunha no local de um candidato P1/P2, ativa logo a orientação.
+\begin{liveness}
+INCIDENTVERIFIER & (Verify)\om \\
+Verify & RaiseCandidateAlert . \_MergeCandidates . \_OpenWindow . (Gather || [ActivateGuidance]) . \_FuseEvidence . \_ClassifyPriority . \_LogDecision . (DeclareIncident . [RetractIncident] . CloseCase | \_DiscardCandidate . [CloseCase]) \\
+Gather & (CorroborationRequest | TriageQuestionnaire | QueryTrust | CancelAlert)* \\
+\end{liveness}
+\textit{Safety.} Nenhum candidato fica em verificação mais do que $W_{max}(p)$; só declara com confiança fundida $\ge \tau_{declare}(p)$ e cumprindo OS4; cada fonte independente conta uma vez; os pedidos às fontes nunca levam a localização precisa; cada decisão fica no \id{auditLog} com as evidências e os pesos.
+
+\paragraph{R4 IncidentCoordinator (SO-DR).} Dono exclusivo de um caso verificado até ao fecho. Avalia as necessidades, pede ambulância, lança chamadas na vizinhança e adjudica com redundância controlada, acompanha o progresso, realoca perante falhas, dispensa o excedente e encerra o caso.
+\begin{liveness}
+INCIDENTCOORDINATOR & DeclareIncident . \_AssessNeeds . RequestDisclosure . (Dispatch || Track || [ActivateGuidance] . HelpEnRouteNotice*) . [RetractIncident . ReleaseResponder] . \_LogDecision . CloseCase . OutcomeFeedback \\
+Dispatch & [RequestAmbulance] || Recruit+ || [\_SelectAED . ReserveAED] \\
+Recruit & CallForResponders . QueryTrust* . \_RankProposals . AwardTask+ \\
+Track & (StatusUpdate . \_MonitorProgress . [Recruit | ReleaseResponder])+ \\
+\end{liveness}
+\textit{Safety.} Em P1/P2 nunca encerra sem ambulância pedida (OL2); só a cancela com falso alarme confirmado por humano ou decisão da EMS (OS6); a localização precisa só segue para os adjudicados e a EMS (OS5); adjudica no máximo $N_{max}(p)$ voluntários; cada tarefa tem prazo $\mathrm{ETA} + \delta$, e ultrapassá-lo desencadeia \id{Recruit}.
+
+\paragraph{R5 VolunteerResponder (SO-DR).} Cidadão com formação em SBV que avalia cada chamada no próprio telemóvel, sem revelar a posição, e se adjudicado vai ao doente, faz SBV, rende a testemunha e passa a informação à EMS.
+\begin{liveness}
+VOLUNTEERRESPONDER & (Respond)\om \\
+Respond & CallForResponders . [Commit] \\
+Commit & AwardTask . (\_TravelToScene || StatusUpdate+) . (ReleaseResponder | OnScene) \\
+OnScene & \_AssessPatient . [TakeoverFromBystander] . (\_PerformBLS || StatusUpdate*) . HandoverToEMS . ReleaseResponder \\
+\end{liveness}
+\textit{Safety.} No máximo um compromisso ativo (OS2); as propostas levam ETA e qualificação, nunca coordenadas; atua só dentro da sua qualificação; num local inseguro não intervém e informa.
+
+\paragraph{R6 AEDRunner (SO-DR).} Voluntário adjudicado para levantar um DAE reservado, com um código de uso único, e levá-lo ao doente.
+\begin{liveness}
+AEDRUNNER & (Fetch)\om \\
+Fetch & CallForResponders . [Commit] \\
+Commit & AwardTask . ((\_TravelToAED . RetrieveAED . \_TravelToScene . \_DeliverAED) || StatusUpdate+) . [ReleaseResponder] \\
+\end{liveness}
+\textit{Safety.} Só levanta um DAE com reserva válida para o seu caso; o código usa-se uma vez; um DAE em falta ou avariado é comunicado de imediato.
+
+\subsection{Esquemas de papel: DAE, EMS, apoio, confiança e privacidade (R7--R12)}\label{sec:esquemas2}
+
+\paragraph{R7 AEDCustodian (SO-DR).} Representa um DAE num armário: mantém o estado público, aceita ou recusa reservas, emite códigos de uso único e liberta reservas canceladas ou expiradas.
+\begin{liveness}
+AEDCUSTODIAN & (\_SelfTest . \_UpdateRegistry)\om{} || (Lend)\om \\
+Lend & ReserveAED . \_UpdateRegistry . (RetrieveAED . CloseCase | \_ExpireReservation) . \_UpdateRegistry \\
+\end{liveness}
+\textit{Safety.} No máximo uma reserva ativa (OS3); fora de horas ou com o autoteste falhado fica UNAVAILABLE; o código só vale para a sua reserva e durante $T_{code}$.
+
+\paragraph{R8 EMSUnit (SO-DR).} Ambulância: propõe um ETA, desloca-se, recebe a passagem de informação, assume os cuidados e confirma o desfecho clínico, que é o rótulo de referência para a reputação.
+\begin{liveness}
+EMSUNIT & (Serve)\om \\
+Serve & RequestAmbulance . [Commit] \\
+Commit & (\_TravelToScene || StatusUpdate+) . (ReleaseResponder | HandoverToEMS . [RequestDisclosure] . \_ProvideCare . StatusUpdate . [\_Transport] . CloseCase) \\
+\end{liveness}
+\textit{Safety.} Comprometida com um caso, só aceita outro por preempção de P3 para P1 (OS9); comunica variações de ETA acima de $\delta$; a confirmação clínica segue sempre por \id{StatusUpdate}.
+
+\paragraph{R9 BystanderGuide (SO-AT).} Conduz a testemunha pelo algoritmo de SBV/DAE, escolhe cada passo pelo feedback, integra a ajuda a caminho e deteta silêncio prolongado.
+\begin{liveness}
+BYSTANDERGUIDE & (Assist)\om \\
+Assist & ActivateGuidance . (Coach+ || HelpEnRouteNotice*) . [TakeoverFromBystander | HandoverToEMS] . CloseCase \\
+Coach & \_SelectNextStep . GiveInstruction . (ReportFeedback | \_DetectSilence . StatusUpdate) \\
+\end{liveness}
+\textit{Safety.} Só emite instruções de \id{guidanceProtocol} (OS12); o primeiro passo é a segurança do local; nunca manda parar as compressões, exceto para o DAE analisar, para quem chega assumir ou perante sinais de vida; sem feedback durante $T_{silence}$ repete a instrução e comunica WITNESS\_SILENT.
+
+\paragraph{R10 OnSceneHelper (SO-AT).} Testemunha leiga que segue as instruções e reporta o resultado. Na simulação encapsula o modelo humano: cumprimento, fadiga e desistência.
+\begin{liveness}
+ONSCENEHELPER & (GiveInstruction . \_PerformInstruction . \_ObservePatient . [ReportFeedback])+ . [TakeoverFromBystander] \\
+\end{liveness}
+\textit{Safety.} Nunca recebe a identidade nem dados clínicos (OS5); pode desistir a qualquer momento; só age por instruções recebidas.
+
+\paragraph{R11 ReputationManager (SO-CP).} Mantém uma tabela local de confiança em fontes e socorristas, por pseudónimo estável, atualizada com os desfechos rotulados, envelhecida com o tempo e trocada com pares. O candidato natural é o modelo de reputação Beta (Jøsang e Ismail, 2002).
+\begin{liveness}
+REPUTATIONMANAGER & (QueryTrust)\om{} || (OutcomeFeedback . \_UpdateTrust)\om{} || (ShareReputation . \_AggregateRecommendations)\om{} || (\_DecayTrust)\om \\
+\end{liveness}
+\textit{Safety.} A confiança está em $[0, 1]$ e vem sempre com o número de observações; um pseudónimo novo começa no valor a priori, por isso trocar de pseudónimo não dá vantagem; uma recomendação pesa no máximo a confiança no par vezes o valor recomendado.
+
+\paragraph{R12 PrivacyGuardian (SO-CP).} Atua em nome do titular dos dados (o doente, ou a testemunha quanto à sua localização). Decide cada pedido de divulgação pelo consentimento, pela fase do caso e pela necessidade de saber, regista as divulgações e apaga os dados no fim.
+\begin{liveness}
+PRIVACYGUARDIAN & (RequestDisclosure . \_LogDisclosure)\om{} || (CloseCase . \_PurgeCaseData)\om \\
+\end{liveness}
+\textit{Safety.} A localização precisa só vai para o coordenador, os adjudicados e a EMS de um caso ativo (OS5); identidade e dados clínicos só para a EMS; os dados são apagados até $T_{ret}$ após o fecho (OS11); sem política aplicável prevalece a mais restritiva, exceto os interesses vitais em P1/P2 com o titular incapaz.
+
+\subsection{Matriz ambiente--papéis}\label{sec:matriz}
+
+A matriz condensa as permissões e confirma que nenhum papel acede a mais do que precisa. Legenda: R lê, R* lê só o subconjunto necessário, C altera, G cria, X consome. Omitem-se \id{simClock} (lido por quase todos) e \id{groundTruth} (nenhum papel).
+
+{\small
+\noindent\begin{tabularx}{\linewidth}{@{}>{\ttfamily}X*{12}{c}@{}}
+\toprule
+\normalfont Recurso & SM & WR & IV & IC & VR & AR & AC & EU & BG & OH & RM & PG \\
+\midrule
+roadNetwork & R & & R & R & R & R & & R & & & & \\
+guidanceProtocol & & & & & R & & & & R & & & \\
+sensorStream[d] & R & & & & & & & & & & & \\
+wearerResponse[d] & R & & & & & & & & & & & \\
+consentPolicy[s] & R & & & & & & & & & & & R \\
+subjectData[s] & & & & & & & & & & & & C \\
+candidateAlert[k] & G & G & X & & & & & & & & & \\
+incidentCase[c] & & R* & G, C & C & R* & R* & & R* & R* & & & R* \\
+guidanceLog[c] & & & & & & & & & G & & & \\
+aedRegistry & & & & R & R & R & C & & & & & \\
+aedAccessCode[a] & & & & & & X & G & & & & & \\
+responderState[v] & & & & & C & C & & & & & & \\
+emsState[u] & & & & & & & & C & & & & \\
+patientCondition[c] & & R & & & C & & & C & & C & & \\
+trustTable[i] & & & R & R & & & & & & & C & \\
+auditLog & & & C & C & & & & & & & R & C \\
+\bottomrule
+\end{tabularx}
+}
+
+Os dois recursos mais sensíveis fora do doente (\id{sensorStream} e \id{subjectData}) têm um único papel com acesso. Quando um papel precisa de um recurso a que não tem acesso, obtém-no através de um papel que o tem, e é daí que nascem vários protocolos: o verificador obtém evidência dos sensores por P03 (só resumos); o coordenador e a EMS obtêm a localização e os dados clínicos por P24; o estafeta obtém o código do DAE por P12; o coordenador conhece o estado do doente por P13, a distância dos voluntários por P08 (só o ETA, nunca a posição) e o estado das ambulâncias por P10; o guia sabe o que a testemunha fez por P17.
+
+\section{Modelo preliminar de interações}\label{sec:interacoes}
+
+\subsection{Resumo}\label{sec:interacoes-resumo}
+
+Vinte e quatro protocolos cobrem as interações entre papéis: 21 são núcleo, necessários nos cenários principais, e 3 são extensões (P15, P18 e P23). As tabelas seguintes dão, para cada um, os atributos do Gaia: iniciador, parceiro, entradas e saídas. Onde o parceiro depende da estrutura organizacional, fica ``a definir no design''. O padrão FIPA indicado é só uma sugestão; o design fixa a sequência de mensagens (\path{02-architectural-design.md}, §4).
+
+\subsection{Protocolos de deteção, verificação e despacho (P01--P12)}\label{sec:protocolos1}
+
+{\small
+\begin{xltabular}{\linewidth}{@{}P{3.1cm}P{3.1cm}LP{2.3cm}@{}}
+\toprule
+Protocolo & Iniciador $\rightarrow$ parceiro & Entradas $\rightarrow$ saídas & FIPA sugerido \\
+\midrule
+\endhead
+P01 RaiseCandidateAlert & SM, WR $\rightarrow$ IV da zona (a definir) & Tipo de evento, confiança, célula, instante, pseudónimo, política $\rightarrow$ id do candidato; o IV junta alertas próximos & inform \\
+P02 CancelAlert & SM, WR $\rightarrow$ IV & Candidato, motivo $\rightarrow$ estado resultante & cancel / inform \\
+P03 CorroborationRequest & IV $\rightarrow$ SM, WR da célula e vizinhas & Zona, janela, prazo $\rightarrow$ confirma, nega ou sem dados (silêncio = sem dados) & query-ref / inform \\
+P04 TriageQuestionnaire & IV $\rightarrow$ WR no local & Perguntas de SBV, prazo $\rightarrow$ sim, não ou não sei & query-if / inform \\
+P05 ActivateGuidance & IV ou IC $\rightarrow$ BG (a definir) & Prioridade provisória, triagem já feita $\rightarrow$ aceita ou recusa & request / agree \\
+P06 DeclareIncident & IV $\rightarrow$ IC (a definir) & Caso (prioridade, confiança, fontes) $\rightarrow$ posse exclusiva (OS1) & request / agree \\
+P07 RetractIncident & IV $\rightarrow$ IC & Evidência contrária $\rightarrow$ dispensa por P14; a ambulância fica salvo OS6 & inform / cancel \\
+P08 CallForResponders & IC $\rightarrow$ VR, AR da zona (a definir) & Tarefa (GO\_TO\_PATIENT ou FETCH\_AED), célula, qualificação, prazo $\rightarrow$ ETA calculado no telemóvel, ou recusa & Contract Net: cfp / propose, refuse \\
+P09 AwardTask & IC $\rightarrow$ proponentes & Tarefa, prazo, localização precisa, reserva do DAE $\rightarrow$ compromisso (OS2) ou desistência & accept- / reject-proposal, inform \\
+P10 RequestAmbulance & IC $\rightarrow$ EU próximas & Prioridade, célula $\rightarrow$ ETA; adjudica à de menor ETA; preempção só OS9 & Contract Net \\
+P11 ReserveAED & IC $\rightarrow$ AC & Caso, validade $\rightarrow$ reserva ou recusa; cancelável (OS3) & request / agree, refuse \\
+P12 RetrieveAED & AR $\rightarrow$ AC & Reserva, token de adjudicação $\rightarrow$ código de uso único ou falha & request / inform, failure \\
+\bottomrule
+\end{xltabular}
+}
+
+\subsection{Protocolos de acompanhamento, apoio, fecho, confiança e privacidade (P13--P24)}\label{sec:protocolos2}
+
+{\small
+\begin{xltabular}{\linewidth}{@{}P{3.1cm}P{3.1cm}LP{2.3cm}@{}}
+\toprule
+Protocolo & Iniciador $\rightarrow$ parceiro & Entradas $\rightarrow$ saídas & FIPA sugerido \\
+\midrule
+\endhead
+P13 StatusUpdate & VR, AR, EU, BG $\rightarrow$ IC & Estado (EN\_ROUTE com ETA, AED\_MISSING, ON\_SCENE, CPR\_STARTED, WITNESS\_SILENT, EMS\_TOOK\_OVER, WITHDRAWN, CLINICAL\_CONFIRMATION, \ldots) $\rightarrow$ confirmação & inform \\
+P14 ReleaseResponder & IC $\rightarrow$ adjudicados (EMS só com falso alarme confirmado) & Motivo $\rightarrow$ confirmação & cancel / inform \\
+P15 HelpEnRouteNotice & IC $\rightarrow$ BG & ETA agregados, sem identidades $\rightarrow$ confirmação & inform \\
+P16 GiveInstruction & BG $\rightarrow$ OH & Passo, instrução, cadência $\rightarrow$ receção & request \\
+P17 ReportFeedback & OH $\rightarrow$ BG & Resultado (DONE, CANNOT, BREATHING, TIRED, \ldots) $\rightarrow$ confirmação & inform \\
+P18 TakeoverFromBystander & VR $\rightarrow$ OH, BG & Papel de quem chega $\rightarrow$ resumo das ações & request / inform \\
+P19 HandoverToEMS & EU $\rightarrow$ VR ou BG & Pedido $\rightarrow$ colapso, início da RCP, choques, estado & request / inform \\
+P20 CloseCase & IC (ou IV) $\rightarrow$ envolvidos & Desfecho (FALSE\_ALARM, RESOLVED\_ON\_SCENE, TRANSPORTED) $\rightarrow$ confirmações; purga dos dados & inform \\
+P21 OutcomeFeedback & IC $\rightarrow$ RM & Rótulos por pseudónimo; a confirmação da EMS é a referência & inform \\
+P22 QueryTrust & IV, IC $\rightarrow$ RM & Pseudónimos $\rightarrow$ confiança e n.º de observações & query-ref / inform \\
+P23 ShareReputation & RM $\rightarrow$ RM de pares & Resumos (sucessos, falhas) nos dois sentidos, descontados & inform \\
+P24 RequestDisclosure & IC, EU $\rightarrow$ PG & Campo, finalidade, destinatários $\rightarrow$ dado na granularidade autorizada ou recusa & request / agree, inform \\
+\bottomrule
+\end{xltabular}
+}
+
+\section{Regras organizacionais}\label{sec:regras}
+
+As regras organizacionais são responsabilidades da organização como um todo, que não cabem num só papel. A notação segue Zambonelli et al.\ (2003): $R \rightarrow Q$ (Q só depois de R), $P^{1}$ (exatamente uma vez), $X^{n+}$ (pelo menos $n$ vezes) e $\neg(R \parallel Q)$ (a mesma entidade nunca desempenha R e Q em simultâneo). Os papéis aparecem pelas siglas da secção~\ref{sec:papeis-resumo}.
+
+\subsection{Regras de liveness}\label{sec:liveness}
+
+OL1 fixa o ciclo de vida de um alerta: acaba descartado ou num caso encerrado, e um caso declarado termina sempre com \id{CloseCase} seguido de \id{OutcomeFeedback}.
+\begin{liveness}
+INCIDENT(k) & RaiseCandidateAlert+ . (CorroborationRequest | TriageQuestionnaire | QueryTrust | ActivateGuidance | CancelAlert)* . (\_DiscardCandidate . [CloseCase] | DeclareIncident . RequestDisclosure . ([RequestAmbulance] || (CallForResponders . AwardTask+)+ || [ReserveAED . RetrieveAED]) . StatusUpdate+ . [RetractIncident] . [TakeoverFromBystander] . [HandoverToEMS] . ReleaseResponder* . CloseCase . OutcomeFeedback) \\
+\end{liveness}
+
+{\small
+\begin{xltabular}{\linewidth}{@{}lTL@{}}
+\toprule
+& \normalfont Regra & Significado \\
+\midrule
+\endhead
+OL2 & DeclareIncident(c) $\rightarrow$ RequestAmbulance(c)$^{1+}$ se prio(c) $\in$ \{P1, P2\} & Em P1/P2 a ambulância é sempre pedida logo após a declaração \\
+OL3 & TriageQuestionnaire(WR(k)) $\rightarrow$ ActivateGuidance(k) se prio provisória $\in$ \{P1, P2\} & A orientação começa com a triagem, sem esperar pela declaração \\
+OL4 & AwardTask(x, c) $\rightarrow$ TakeoverFromBystander(VR(x), c), HandoverToEMS(VR(x), c); ReserveAED(a, c) $\rightarrow$ RetrieveAED(AR(x), a) & Só quem foi adjudicado atua no local; só se levanta um DAE reservado \\
+OL5 & WR(k) $\rightarrow$ OH(k) & Só é orientado quem respondeu à triagem desse candidato \\
+OL6 & StatusUpdate(c, falha) $\rightarrow$ CallForResponders(c), enquanto a necessidade não estiver coberta & Desistência, DAE em falta ou atraso acima de $\mathrm{ETA}+\delta$ levam a nova chamada \\
+OL7 & TakeoverFromBystander(c) $\rightarrow$ HandoverToEMS(c) $\rightarrow$ ReleaseResponder(VR(c)) & Passagens testemunha, voluntário, EMS; depois, dispensa \\
+OL8 & StatusUpdate(c, ON\_SCENE)$^{N_{need}(p)}$ $\rightarrow$ ReleaseResponder(c, em trânsito) & Com $N_{need}(p)$ no local, os que vêm a caminho são dispensados \\
+OL9 & CloseCase(c) $\rightarrow$ OutcomeFeedback(c)$^{1}$; CloseCase(c) $\rightarrow$ \_PurgeCaseData(PG(c)) & Um único rótulo de desfecho e purga dos dados \\
+\bottomrule
+\end{xltabular}
+}
+
+\subsection{Regras de safety}\label{sec:safety}
+
+{\small
+\begin{xltabular}{\linewidth}{@{}lTL@{}}
+\toprule
+& \normalfont Regra & Significado \\
+\midrule
+\endhead
+OS1 & IC(c)$^{1}$ em cada instante, para todo o caso ativo c & Um só dono por caso; a recuperação de falhas tem de o preservar \\
+OS2 & $\neg$(VR(c1) $\parallel$ VR(c2)), $\neg$(AR(c1) $\parallel$ AR(c2)), $\neg$(VR(c1) $\parallel$ AR(c2)), c1 $\neq$ c2 & Ninguém está comprometido com dois casos \\
+OS3 & reservas\_ativas(a) $\le$ 1 & Um DAE tem no máximo uma reserva ativa \\
+OS4 & DeclareIncident(c) $\Rightarrow$ conf(c) $\ge \tau_{declare}(p)$ $\wedge$ (fontes\_indep(c) $\ge$ 2 $\vee$ humano\_fiável(c) $\vee$ (alerta\_auto(c) $\wedge$ portador\_sem\_resposta(c))) & Declarar exige duas fontes independentes, uma testemunha fiável, ou um alerta automático sem resposta do portador (quem colapsa sozinho) \\
+OS5 & recebe(x, identidade $\vee$ clínico, c) $\Rightarrow$ x = EU(c); recebe(x, local\_preciso, c) $\Rightarrow$ x $\in$ \{IC(c), adjudicados(c), EU(c)\} $\wedge$ ativo(c) & Necessidade de saber \\
+OS6 & cancelar(RequestAmbulance(c)) $\Rightarrow$ falso\_alarme\_humano(c) $\vee$ decisão\_EMS(c) & A ambulância nunca é cancelada só com evidência automática \\
+OS7 & $\neg$(SM(k) $\parallel$ IV(k)), $\neg$(WR(k) $\parallel$ IV(k)) & Quem alerta não verifica o próprio alerta \\
+OS8 & alertas(v, T) $\le A_{max}$ $\wedge$ adjudicações\_seguidas(v) $\le K_{max}$ & Limita a carga e a fadiga de cada voluntário \\
+OS9 & preempção(x, c\_antigo $\rightarrow$ c\_novo) $\Rightarrow$ prio(c\_antigo) = P3 $\wedge$ prio(c\_novo) = P1 & Só um compromisso P3 é interrompido, e só por um P1 \\
+OS10 & mudança de estado de um caso ou divulgação $\Rightarrow$ entrada em auditLog & Rastreabilidade das decisões \\
+OS11 & t\_purga(c) $-$ t(CloseCase(c)) $\le T_{ret}$ & Dados pessoais apagados até $T_{ret}$ \\
+OS12 & instrução emitida $\in$ guidanceProtocol & Nenhuma instrução clínica fora do protocolo de SBV \\
+OS13 & VR(v) $\vee$ AR(v) $\Rightarrow$ qualificação\_válida(v); IV(x) $\vee$ IC(x) $\Rightarrow$ confiança(x) $\ge \tau_{min}$ & Quem entra começa no valor a priori e só coordena quando for fiável \\
+\bottomrule
+\end{xltabular}
+}
+
+Como o Gaia prevê, estas regras pesam na escolha da estrutura: OS1, OS7 e OS13 são mais fáceis de garantir com um coordenador estável por zona do que num coletivo de pares, e OS2 e OS3 obrigam a compromissos exclusivos com confirmação explícita (P09, P11).
+
+\section{Preparação da avaliação}\label{sec:avaliacao}
+
+A avaliação fica definida já, para que a implementação registe desde o início o que vai ser medido.
+
+\subsection{Métricas}\label{sec:metricas}
+
+{\small
+\begin{xltabular}{\linewidth}{@{}lP{3.6cm}Ll@{}}
+\toprule
+& Métrica & Definição & Requisito \\
+\midrule
+\endhead
+M1 & Latência de verificação & $t_{\text{declaração}} - t_{\text{colapso}}$ & RNF1 \\
+M2 & Qualidade da verificação & Precisão e recall face a \id{groundTruth}; falsos alarmes despachados; incidentes perdidos & RF2, RNF7 \\
+M3 & Tempo até RCP & Primeiras compressões, por testemunha ou voluntário, desde o colapso & RNF1 \\
+M4 & Tempo até DAE e 1.º choque & Desde o colapso, nos ritmos desfibrilháveis & RNF1, RF6 \\
+M5 & Tempo até EMS & Chegada da ambulância desde o colapso & RNF1 \\
+M6 & Sobrevivência estimada & Média nos P1 desfibrilháveis de $\max(0;\ 67 - 2{,}3\,t_{RCP} - 1{,}1\,t_{desfib} - 2{,}1\,t_{SAV})$~\%, em minutos (Larsen et al., 1993); serve para comparar estratégias & RNF1 \\
+M7 & Cobertura antes da EMS & \% de P1 com voluntário (e com DAE) no local antes da EMS & RNF1 \\
+M8 & Custo de comunicação & Mensagens por incidente e por agente & RNF3 \\
+M9 & Eficiência da alocação & Diferença face a um oráculo centralizado com informação completa & RF5 \\
+M10 & Carga dos voluntários & Alertas e tarefas por voluntário, índice de Jain, minutos em falsos alarmes & RNF6, RNF7 \\
+M11 & Exposição de privacidade & Agentes que recebem a localização precisa ou a identidade, por caso & RNF4 \\
+M12 & Robustez & Degradação de M3--M5 com perda de mensagens e agentes falhados; tempo até recuperar & RNF2 \\
+M13 & Equidade territorial & Diferença de M3 e M7 entre zonas centrais e periféricas & RNF6 \\
+\bottomrule
+\end{xltabular}
+}
+
+\subsection{Cenários de teste}\label{sec:cenarios}
+
+{\small
+\noindent\begin{tabularx}{\linewidth}{@{}P{2.4cm}LLl@{}}
+\toprule
+Cenário & O que muda & Pergunta & Métricas \\
+\midrule
+C1 Base urbana & Densidade média, sensores fiáveis, boa rede & O fluxo funciona? Em quantos P1 chega um voluntário antes da EMS? & M1--M7 \\
+C2 Ruído & Falsos positivos $\times 5$, sensores com deriva, testemunhas pouco fiáveis & A corroboração e a reputação mantêm a precisão? AlertFirst ou ConfirmFirst? & M1, M2, M10 \\
+C3 Pico & Vários incidentes simultâneos numa zona & A exclusividade e a prioridade evitam conflitos? Que redundância compensa? & M3--M5, M9, M10 \\
+C4 Periferia & Poucos voluntários, DAE fechados, rede intermitente, ambulância distante & A orientação e a realocação seguram os tempos? Quanto custa recuperar um coordenador? & M3, M7, M12, M13 \\
+C5 Adversarial (opcional) & Uma fonte maliciosa com pseudónimos novos & A confiança a priori contém o abuso? & M2, M10 \\
+\bottomrule
+\end{tabularx}
+}
+
+Há duas baselines: B0, um oráculo centralizado com informação completa e sem latência (melhor caso para M9), e B1, uma difusão ingénua em que todos os voluntários no raio são alertados e vai quem aceitar primeiro, sem verificação nem reputação. Comparam-se também variantes do nosso sistema: AlertFirst contra ConfirmFirst, redundância $k = 1$, 2 ou 3, com e sem reputação, e divulgação via coordenador ou direta.
+
+\subsection{Parâmetros iniciais}\label{sec:parametros}
+
+{\small
+\begin{xltabular}{\linewidth}{@{}P{4.2cm}LP{4.2cm}@{}}
+\toprule
+Parâmetro & Valor inicial & Origem \\
+\midrule
+\endhead
+Raio de alerta & 1,3 a 2~km & sistemas reais (\ref{sec:contexto}) \\
+Voluntários notificados por caso & até 20--30, escalado à dimensão simulada & sistemas reais (\ref{sec:contexto}) \\
+Prazo para propostas (P08) & 10--15~s & pressuposto nosso \\
+$W_{max}$ & P1 30~s, P2 60~s, P3 120~s & pressuposto nosso \\
+Contagem do ``Está bem?'' & 30--60~s & pressuposto nosso \\
+$\tau_{declare}$ & P1 0,6, P2 0,75, P3 0,85 & mais baixo em P1, porque falhar um P1 custa mais \\
+Redundância em P1 & 2 RCP + 1 DAE; $N_{max} = 4$ & pressuposto nosso \\
+$T_{silence}$ & 20~s & pressuposto nosso \\
+Dimensão & 3 $\times$ 3~km; 40 sensores, 15 testemunhas, 30 voluntários, 10 DAE, 4 ambulâncias & a ajustar ao desempenho do SPADE \\
+Relógio & simulado, acelerado 10 vezes; prazos em tempo simulado & pressuposto nosso \\
+\bottomrule
+\end{xltabular}
+}
+
+\subsection{Modos de falha}\label{sec:falhas}
+
+{\small
+\begin{xltabular}{\linewidth}{@{}lP{4.2cm}P{3.4cm}L@{}}
+\toprule
+& Falha & Deteção & Resposta prevista \\
+\midrule
+\endhead
+F1 & Falso positivo de sensor & Portador cancela; corroboração & P02, P03, OS4, reputação \\
+F2 & Falso negativo, pessoa sozinha & Só no \id{groundTruth} & Terceira via de OS4; $\tau$ mais baixo em P1 \\
+F3 & Deriva de sensor & Confiança da fonte a descer & Envelhecimento e peso pela confiança \\
+F4 & Relato humano errado ou malicioso & Triagem incoerente; histórico & P04, OS4, confiança a priori (OS13) \\
+F5 & Perda ou atraso de mensagens & Prazos expirados & Repetição; mensagens idempotentes; redundância $k$ \\
+F6 & Falha do coordenador & Heartbeat em falta & Sucessor determinístico que preserve OS1 (design) \\
+F7 & Voluntário falta ou atrasa & $\mathrm{ETA}+\delta$ ultrapassado & OL6, redundância, reputação \\
+F8 & DAE indisponível & AED\_MISSING em P13 & Novo \id{\_SelectAED} \\
+F9 & Incidentes a disputar recursos & Conflito de compromissos & OS2, OS3, OS9 \\
+F10 & Ambulância atrasada ou indisponível & Sem propostas em P10 & Alargar o raio; voluntários mantêm a RCP (OS6) \\
+F11 & Testemunha desiste & $T_{silence}$ & \id{\_DetectSilence}, P13, mais voluntários \\
+F12 & Fuga de dados pessoais & Auditoria & OS5, OS11, PrivacyGuardian \\
+F13 & Zona sem rede & Sem respostas & Orientação local; o 112 continua a via principal (A7) \\
+F14 & Casos duplicados do mesmo colapso & Dois casos na mesma zona e janela & \id{\_MergeCandidates}; fusão de casos (design) \\
+F15 & Spam de alertas com pseudónimos novos & Taxa anómala & OS13; limites de taxa \\
+\bottomrule
+\end{xltabular}
+}
+
+\section{Rastreabilidade e ponte para o design}\label{sec:ponte}
+
+\subsection{Matriz de rastreabilidade}\label{sec:rastreabilidade}
+
+Cada requisito tem pelo menos um papel e um protocolo ou regra que o realizam, e quase todos uma métrica que o mede.
+
+{\small
+\begin{xltabular}{\linewidth}{@{}P{4.4cm}LLL@{}}
+\toprule
+Requisito & Protocolos & Regras & Métricas \\
+\midrule
+\endhead
+RF1 Detetar & P01 & OL1 & M1, M2 \\
+RF2 Corroborar & P03, P04, P22 & OS4, OS7 & M1, M2 \\
+RF3 Classificar & P06 & OS4 & M2 \\
+RF4 Cancelar e retratar & P02, P07, P14 & OS6 & M2, M10 \\
+RF5 Alocar sem despachante & P08--P10 & OS1, OS2, OS9 & M3, M5, M9 \\
+RF6 Despacho duplo & P08, P09 & OL4 & M4, M7 \\
+RF7 Gerir DAE & P11, P12 & OS3 & M4 \\
+RF8 Acompanhar e realocar & P13, P08 & OL6, OL8 & M3, M12 \\
+RF9 Orientar testemunhas & P05, P15--P17 & OL3, OL5, OS12 & M3 \\
+RF10 Passagem de informação & P18, P19 & OL7 & M5 \\
+RF11 Encerrar & P20 & OL1, OL9 & -- \\
+RF12 Reputação & P21--P23 & OS13 & M2, M10 \\
+RF13 Privacidade & P24 & OS5, OS11 & M11 \\
+RF14 Métricas & todos, via \id{auditLog} & OS10 & todas \\
+RNF2 Robustez & P13 & OS1 & M12 \\
+RNF5 Safety & P16 & OS6, OS12 & M3 \\
+RNF6, RNF7 Equidade e fadiga & P14 & OS8 & M10, M13 \\
+\bottomrule
+\end{xltabular}
+}
+
+\subsection{Decisões em aberto para o design arquitetural}\label{sec:decisoes}
+
+O Gaia escolhe a estrutura organizacional pesando a eficiência, a organização do mundo real e as regras a fazer cumprir. A análise deixa abertas oito decisões, resolvidas em \path{02-architectural-design.md}, §2.
+
+{\small
+\noindent\begin{tabularx}{\linewidth}{@{}lP{3.8cm}LP{3cm}@{}}
+\toprule
+& Decisão & Opções & Critério \\
+\midrule
+D1 & Topologia & (a) coletivo de pares; (b) hierarquia leve por células, com nós fixos (armários de DAE) a coordenar; (c) coordenador efémero por caso & OS1, OS7, OS13; M8 \\
+D2 & Quem verifica e coordena & Nó fixo da célula; dispositivo próximo com bateria e rede; rotação & OS7; M12 \\
+D3 & Descoberta sem revelar a posição & Subscrição por célula; difusão por raio; registo num nó fixo & M11 contra M3 \\
+D4 & Alocação & Contract Net com redundância $k$; primeiro a aceitar; leilão por prioridade & M3, M9, M10 \\
+D5 & Fusão e limiares & Bayesiana com razões de verosimilhança pesadas pela confiança; $\tau$ e $W$ por prioridade & M1 contra M2 \\
+D6 & Confiança & Beta local e gossip com desconto & M2 em C2 e C5 \\
+D7 & Privacidade & Pseudónimos por caso; tamanho das células; divulgação via coordenador ou direta & M11 contra M8 \\
+D8 & Recuperação de falhas & Heartbeat e lease do coordenador; fusão de duplicados & OS1, M12 \\
+\bottomrule
+\end{tabularx}
+}
+
+\subsection{Notas para SPADE}\label{sec:spade}
+
+{\raggedright
+\begin{itemize}
+\item Um papel corresponde a um conjunto de behaviours de um agente SPADE.
+\item Liveness e behaviours: \id{(x)}\om{} dá um \id{CyclicBehaviour}; as atividades periódicas (\id{\_SelfTest}, \id{\_DecayTrust}, \id{ShareReputation}) dão \id{PeriodicBehaviour}; janelas e prazos dão esperas com timeout; protocolos com vários passos (Contract Net, orientação) dão \id{FSMBehaviour}.
+\item Cada mensagem leva \id{performative} e \id{protocol} na metadata e o identificador do caso como \id{thread}.
+\item O servidor XMPP embutido do SPADE tem relatos de instabilidade com muitas subscrições de presença, por isso a dimensão real deve ser testada cedo (o design acabou por não usar presença, D3).
+\item Com o relógio acelerado, a latência real do XMPP também acelera em tempo simulado; o fator de aceleração tem de ser escolhido para não a distorcer.
+\end{itemize}
+}
+
+\section*{Referências}
+
+\begin{list}{}{\setlength{\leftmargin}{1.5em}\setlength{\itemindent}{-1.5em}\setlength{\itemsep}{1pt}}
+\item CARES (2026). \emph{Relatório anual 2025: Chain of Survival}.
+\item FIPA (2002). \emph{FIPA Contract Net Interaction Protocol Specification} (SC00029H).
+\item Jøsang, A., \& Ismail, R. (2002). The Beta Reputation System. \emph{15th Bled Electronic Commerce Conference}.
+\item Larsen, M. P., Eisenberg, M. S., Cummins, R. O., \& Hallstrom, A. P. (1993). Predicting survival from out-of-hospital cardiac arrest: a graphic model. \emph{Annals of Emergency Medicine}, 22(11), 1652--1658.
+\item Regulamento (UE) 2016/679 (RGPD), art.~9.º, n.º~2, alínea c).
+\item Smith, R. G. (1980). The Contract Net Protocol. \emph{IEEE Transactions on Computers}, C-29(12), 1104--1113.
+\item Estudos sobre sistemas de voluntários: HartslagNu (Holanda); voluntários ativados por smartphone na Suécia e na Dinamarca (PMC9910568); ensaio SAMBA (PMC9713680).
+\item Wooldridge, M. (2009). \emph{An Introduction to MultiAgent Systems} (2.ª ed.). Wiley.
+\item Wooldridge, M., Jennings, N. R., \& Kinny, D. (2000). The Gaia methodology for agent-oriented analysis and design. \emph{Autonomous Agents and Multi-Agent Systems}, 3(3), 285--312.
+\item Zambonelli, F., Jennings, N. R., \& Wooldridge, M. (2003). Developing multiagent systems: the Gaia methodology. \emph{ACM Transactions on Software Engineering and Methodology}, 12(3), 317--370.
+\end{list}
+
+\end{document}

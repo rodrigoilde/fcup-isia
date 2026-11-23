@@ -10,162 +10,104 @@
 \fi
 \usepackage[portuguese]{babel}
 \usepackage{microtype}
-\usepackage{amsmath}
 \usepackage[margin=2.5cm]{geometry}
-\usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{tabularx}
 \usepackage{array}
 \usepackage{fancyvrb}
-\usepackage{enumitem}
 \usepackage[font=small,labelfont=bf]{caption}
 \usepackage{url}
 \usepackage{placeins}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{babel}
 \usepackage[hidelinks]{hyperref}
 
-\graphicspath{{./}{../results/}}
-\setlist{itemsep=2pt,topsep=4pt}
 \renewcommand{\arraystretch}{1.15}
 \newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
 
-\title{Relatório de desempenho: resposta médica de emergência comunitária descentralizada\\[0.5em]\large ISIA 2026/27 · Trabalho prático 1 · Tópico O}
+\title{Relatório de desempenho\\[0.4em]\large Resposta médica de emergência comunitária descentralizada\\ISIA 2026/27, trabalho prático 1, tópico O}
 \author{Rodrigo Dias (202407281) \and Francisco Machado (202403514)}
-\date{FCUP, 19 de novembro de 2026}
+\date{FCUP, novembro de 2026}
 
 \begin{document}
 
 \maketitle
 
-\begin{abstract}
-Apresentamos um sistema multiagente em SPADE para resposta médica de emergência comunitária sem despachante central. A cidade está dividida em células, e o armário de DAE de cada uma é um hub que verifica os alertas por fusão de evidência pesada pela reputação das fontes, aloca voluntários, DAE e ambulâncias por Contract Net e assume os casos de um vizinho que falhe. Avaliámos o sistema em cinco cenários contrastantes, com 21 configurações e 210 runs, comparando-o seed a seed com uma difusão ingénua (B1) e com um oráculo centralizado (B0). A RCP começa 2 a 6 vezes mais cedo do que com a B1, mas a maior parte deste ganho vem da guia da testemunha e não da coordenação entre agentes. A verificação reduz para metade ou menos os falsos despachos com sensores ruidosos e com fontes adversárias, à custa de 7 a 14 s na declaração. O sucessor assume os casos de um hub que falha em cerca de 21 s, sem casos órfãos.
-\end{abstract}
+\section{Introdução}
 
-Todos os números deste relatório vêm da matriz final de experiências, com 210 runs válidos, todos sobre a mesma versão do sistema. As tabelas completas estão em \path{results/summary.md} (médias), \path{results/paired.md} (diferenças emparelhadas por seed), \path{results/misses.md} (incidentes falhados por motivo) e \path{results/evolution.md} (evolução do desenho). A secção~\ref{sec:sistema} resume o sistema; o desenho completo está em \path{docs/02} a \path{docs/04}.
+Este relatório avalia o sistema multiagente em SPADE que desenvolvemos para o tópico O, resposta médica de emergência comunitária sem despachante central. Segue o que o enunciado pede para o relatório de desempenho: resultados em pelo menos três cenários de teste contrastantes, análise das métricas, trade-offs e limitações. Os agentes, os formatos de mensagem e os protocolos estão descritos em \path{docs/} e nos slides; aqui resumimos só o necessário para ler os resultados.
 
-\section{Introdução}\label{sec:intro}
+A cidade está dividida em células, e o armário de DAE de cada célula é um hub: o agente que verifica os alertas da célula, coordena os casos e mantém a reputação das fontes. Para declarar um incidente, o hub funde a evidência dos sensores dos cidadãos e dos relatos das testemunhas, e pesa cada fonte pela confiança que tem nela, calculada com o modelo de reputação Beta (Jøsang e Ismail, 2002). Voluntários, DAE e ambulâncias são alocados por Contract Net (Smith, 1980; FIPA, 2002), com o ETA de cada um como proposta. A testemunha recebe no telemóvel uma guia de RCP passo a passo, ativada logo na triagem, antes de o caso ser declarado. Cada hub replica os seus casos num sucessor fixo, que os assume quando deixa de receber os heartbeats do hub.
 
-O sistema deteta paragens cardiorrespiratórias e outros incidentes médicos urgentes, verifica-os localmente e despacha voluntários, desfibrilhadores (DAE) e ambulâncias sem despachante central. A cidade está dividida em células; o armário de DAE de cada célula é o hub que verifica os alertas, coordena os casos por Contract Net (Smith, 1980; FIPA, 2002) e mantém a reputação das fontes com o modelo Beta (Jøsang e Ismail, 2002). As testemunhas recebem no telemóvel uma guia de RCP passo a passo.
+\section{Método}
 
-A avaliação procura responder a uma pergunta por cenário. Escolhemos cinco cenários contrastantes, acima dos três pedidos no enunciado, porque cada mecanismo do desenho (verificação, alocação, reputação, guia e recuperação de falhas) só é posto à prova numa situação própria. A Tabela~\ref{tab:cenarios} resume-os.
+\subsection{Cenários}
+
+Definimos cinco cenários a partir de uma cidade base (C1), mais do que os três pedidos, porque cada mecanismo do sistema só é posto à prova numa situação própria. Cada cenário altera poucas coisas face a C1 e responde a uma pergunta (Tabela~\ref{tab:cenarios}). Os parâmetros estão em \path{scenarios/}.
 
 \begin{table}[htbp]
 \centering
 \small
-\caption{Cenários de teste e pergunta a que cada um responde.}\label{tab:cenarios}
-\begin{tabularx}{\textwidth}{p{2.7cm}LL}
+\caption{Cenários de teste.}\label{tab:cenarios}
+\begin{tabularx}{\textwidth}{P{2.2cm}LL}
 \toprule
 Cenário & O que muda face a C1 & Pergunta \\
 \midrule
-C1 base urbana & Densidade média, sensores fiáveis, boa rede & O fluxo funciona? Com que frequência chega um voluntário antes da ambulância? \\
-C2 ruído & Falsos positivos dos sensores $\times$5, sensores com deriva, testemunhas que leem mal a cena & A corroboração e a reputação mantêm a precisão? AlertFirst ou ConfirmFirst? \\
-C3 pico & 8 incidentes em 10 min num raio de 400 m & Os doentes ficam separados? A exclusividade e a prioridade evitam conflitos? Quanta redundância compensa? \\
-C4 periferia & Metade dos voluntários, metade dos DAE fechados, ambulâncias longe, zonas sem rede, crash do hub 2 aos 1200 s & A guia e a realocação aguentam? Quanto custa recuperar um coordenador? \\
-C5 adversarial & A cidade de C1 com duas pessoas que relatam colapsos falsos, 4 por hora cada & A reputação trava relatos falsos repetidos, e a que custo? \\
+C1 base urbana & Cidade de 3 $\times$ 3 km com 10 hubs, 30 voluntários e 40 dispositivos; sensores fiáveis, rede sem perdas, 3 incidentes por hora & O fluxo completo funciona? Com que frequência chega um voluntário antes da ambulância? \\
+C2 ruído & Falsos positivos dos sensores $\times$5, quatro sensores em deriva, testemunhas que leem mal a cena & A verificação mantém a precisão? Que política de alerta deve o sensor seguir? \\
+C3 pico & Oito incidentes em 10 minutos num raio de 400 m & A alocação evita conflitos entre casos? Quanta redundância compensa? \\
+C4 periferia & Metade dos voluntários, metade dos DAE fechados, ambulâncias fora da área, 5~\% de perda, duas zonas sem rede, falha do hub 2 aos 1200 s & A guia e a alocação compensam a distância? Quanto custa recuperar de um hub que falha? \\
+C5 adversarial & A cidade de C1 com duas pessoas que relatam colapsos falsos, quatro por hora cada & A reputação trava relatos falsos repetidos, e a que custo? \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\section{Sistema avaliado}\label{sec:sistema}
+\subsection{Configurações comparadas}
 
-\subsection{Estrutura e agentes}
+Em cada cenário comparamos o sistema tal como foi desenhado (``nosso'') com a baseline B1 e com variantes que desligam ou alteram um mecanismo de cada vez.
 
-A cidade é dividida em células, e o armário de DAE de cada célula é o hub que a serve. Os armários são infraestrutura fixa, com energia e rede, e os hubs vizinhos coordenam-se como pares, sem nenhum acima dos outros. Escolhemos esta estrutura porque três regras organizacionais da análise Gaia passam a valer por construção: um só dono por caso, quem alerta não verifica e só coordenam agentes provisionados (\path{docs/02} §1.2). A Tabela~\ref{tab:agentes} resume os cinco tipos de agente, com a classificação de Russell e Norvig (2022) e as arquiteturas de Wooldridge (2009).
+A B1 é uma difusão ingénua: declara o caso no primeiro alerta, chama todos os voluntários até ao segundo anel de células, adjudica aos primeiros que respondem e não usa reputação (\path{docs/03} §4.2). Como não faz triagem, também não ativa a guia da testemunha. O B0 é um oráculo centralizado, calculado offline sobre o mesmo traço de incidentes: sabe onde e quando ocorre cada colapso e onde estão todos os voluntários. Não é atingível e serve só de referência para a métrica M9.
 
-\begin{table}[htbp]
-\centering
-\small
-\caption{Tipos de agente, papel e arquitetura.}\label{tab:agentes}
-\begin{tabularx}{\textwidth}{p{3.2cm}LL}
-\toprule
-Agente & Papel & Tipo ou arquitetura \\
-\midrule
-AEDHubAgent & Verifica alertas, coordena o caso, guarda o DAE e a reputação das fontes & Híbrido em camadas: camada reativa (encaminhamento, custódia do DAE, heartbeats) e camada deliberativa (uma FSM por caso) \\
-CitizenDeviceAgent & Sensor do portador e guardião dos seus dados & Reflexo com modelo: guarda os alertas recentes e segue regras fixas \\
-BystanderAgent & Testemunha: reporta e segue a guia de RCP & Modelo humano em camadas: o cansaço e a desistência suprimem a instrução \\
-VolunteerAgent & Licita nas chamadas; vai ao doente ou busca o DAE & Baseado em utilidade: escolhe o DAE e o ETA que minimizam a chegada \\
-EMSAgent & Ambulância & Baseado em utilidade: propõe o seu ETA \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-Não usámos um interpretador BDI. O hub pode ser lido nesses termos: as crenças são a evidência fundida e a tabela de confiança, e as intenções são os compromissos adjudicados, mantidos até serem cumpridos ou impossíveis. Preferimos behaviours do SPADE porque cada prazo dos protocolos fica explícito e testável, e cada decisão fica registada como evento no audit log que o verificador de regras relê.
-
-\subsection{Decisão individual: declarar um incidente}
-
-Para cada candidato a caso, o hub soma em log-odds a evidência de cada fonte,
-\[
-L = \operatorname{logit}(p_0) + \sum_i w_i\, c_i \ln \mathrm{LR}_i, \qquad w_i = \min\left(2,\ t_i / 0{,}5\right),
-\]
-em que $\mathrm{LR}_i$ é a razão de verosimilhança da evidência, $c_i$ a confiança da própria leitura e $t_i$ a confiança do hub na fonte. Com $w_i = c_i = 1$ é a atualização bayesiana do naive Bayes; o peso $w_i$ é uma heurística que dá menos força a fontes pouco fiáveis. O hub declara o incidente quando $\sigma(L)$ atinge o limiar $\tau$ da prioridade e há fontes independentes (regra OS4). A confiança vem do modelo de reputação Beta, $t = (\alpha+1)/(\alpha+\beta+2)$, em que $\alpha$ e $\beta$ contam os desfechos positivos e negativos de cada fonte (Jøsang e Ismail, 2002). Os hubs vizinhos trocam as suas contagens a cada 10 minutos, com desconto de 0,5.
-
-\subsection{Decisão coletiva: alocação e prioridade}
-
-A alocação segue o Contract Net (Smith, 1980; FIPA, 2002): o hub anuncia as tarefas (\emph{cfp}), os voluntários propõem o ETA calculado no telemóvel (\emph{propose}) e o hub adjudica as melhores propostas (\emph{accept-proposal}). Em termos de desenho de mecanismos, é um leilão reverso de proposta selada com uma regra de pontuação (Shoham e Leyton-Brown, 2008). O lance é o ETA; a pontuação agrava-o quando o voluntário não tem a qualificação pedida e divide-o por um fator de confiança, e ganha a menor. Não é um leilão de Vickrey, porque a regra do segundo preço precisa de pagamentos e aqui não há nenhum. A honestidade é incentivada depois do facto, pela reputação: quem chega depois de ETA + $\delta$ ($\delta$ = 120 s) recebe um desfecho negativo, e as suas pontuações seguintes pioram. A adjudicação é gulosa, com um compromisso por voluntário e redundância controlada (num P1, dois voluntários para RCP e um para o DAE); a métrica M9 mede a distância desta escolha ao oráculo. A ambulância é contratada da mesma forma, só pelo ETA.
-
-A segunda decisão coletiva é a prioridade do caso quando as fontes discordam. O hub usa a severidade máxima: o caso fica com a prioridade mais grave que alguma fonte ativa suporta. Com três fontes a apontar P3 e uma P1, a pluralidade, a contagem de Borda e o vencedor de Condorcet dão P3, e a nossa regra dá P1. A regra mantém a unanimidade e o anonimato, mas viola o critério da maioria e o vencedor de Condorcet, e é manipulável por uma única fonte. Aceitamos estas perdas por segurança, porque tratar um P1 como P3 custa muito mais do que o contrário; a manipulação fica limitada pela regra OS4 e pela reputação, que o cenário C5 testa. As fontes dão evidência sobre um doente e não preferências, por isso a comparação mostra sobretudo o que uma regra de maioria teria feito (\path{docs/03} §9.3).
-
-\subsection{Comunicação, privacidade e falhas}
-
-As mensagens seguem o FIPA-ACL: a metadata leva a performativa, a ontologia, a linguagem e o protocolo, o thread da conversa identifica o caso e o corpo é JSON. Os 28 protocolos assentam em padrões FIPA: Contract Net (P08--P10), Request (P05, P11, P12, P24), Query (P03, P04, P22) e Subscribe (P25), com os esquemas em \path{docs/04}. A descoberta funciona como páginas amarelas por célula: voluntários e testemunhas registam no hub pseudónimo, qualificação e célula, nunca a posição (P25). A localização exata fica no telemóvel do titular e só sai a pedido do hub, para os adjudicados (P24); os dados clínicos só vão para a EMS e são purgados depois do fecho. Cada hub replica os seus casos num sucessor fixo e envia heartbeats a cada 5 s; sem heartbeat, o sucessor assume os casos (P27, P28).
-
-Cada cenário põe à prova uma parte do sistema: o fluxo completo em C1, a fusão e a reputação com sensores ruidosos em C2, a alocação e a redundância em C3, a guia e o failover em C4, e a reputação contra fontes adversárias em C5.
-
-\section{Método}\label{sec:metodo}
-
-\subsection{Configurações e baselines}
-
-Comparamos o sistema tal como foi desenhado (``nosso'') com duas baselines. A B1, difusão ingénua, declara o caso no primeiro alerta, chama todos os voluntários até ao segundo anel de células e adjudica a quem responde primeiro, sem reputação (\path{docs/03} §4.2). O B0 é um oráculo centralizado calculado offline sobre o mesmo traço de incidentes: conhece a hora e o local de cada colapso e a posição de todos os voluntários, e despacha logo o melhor. Não é atingível; serve de referência para a métrica M9.
-
-As variantes isolam um mecanismo de cada vez:
-
-\begin{itemize}
-\item C1: perda de 10~\% e de 20~\% das mensagens nas ligações dos telemóveis (robustez, M12) e o sistema sem a guia da testemunha;
-\item C2: política do sensor AlertFirst (alerta logo) e ConfirmFirst (pergunta primeiro ao portador), em vez da adaptativa do nosso (AlertFirst só para sinais de P1), e o sistema sem reputação;
-\item C3: redundância $k = 1$ e $k = 3$ voluntários de RCP por P1 (o nosso usa $k = 2$) e o sistema sem guia;
-\item C4: o sistema sem guia;
-\item C5: o sistema sem reputação.
-\end{itemize}
-
-Com a B1 em todos os cenários, são 21 configurações. Cada uma correu com as seeds 1 a 10, o que dá 210 runs de 60 minutos simulados, com o relógio acelerado 10 vezes. A seed fixa a cidade, as posições e o traço de incidentes, por isso as configurações de um mesmo cenário veem exatamente os mesmos incidentes e podem ser comparadas seed a seed. Cada run tem o seu próprio servidor XMPP. Um run é inválido se o relógio simulado não avançou como devia (por exemplo, se o computador suspendeu); os 210 runs da matriz final são todos válidos.
+As variantes são: sem guia da testemunha (C1, C3 e C4); sem reputação (C2 e C5); as políticas de alerta do sensor AlertFirst, que alerta logo, e ConfirmFirst, que pergunta primeiro ao portador, em vez da adaptativa, que só alerta logo perante sinais de P1 (C2); redundância de $k = 1$ e $k = 3$ voluntários de RCP por P1, em vez de $k = 2$ (C3); e perda de 10~\% e 20~\% das mensagens nas ligações dos telemóveis (C1). Com a B1 em todos os cenários, são 21 configurações. A variante sem guia também serve para isolar a coordenação: como nem ela nem a B1 têm guia, a diferença entre as duas mede o efeito da verificação, do Contract Net e da reputação.
 
 \subsection{Métricas}
 
-As métricas foram definidas na análise Gaia (\path{docs/01}, §8.1) e são calculadas a partir do event log de cada run (\path{src/cemr/metrics/compute.py}). As métricas de tempo contam desde o colapso e usam a mediana dentro de cada run; só incluem os incidentes detetáveis, os que têm um dispositivo ou uma testemunha, porque os outros só seriam apanhados por uma chamada para o 112, que não simulamos. A Tabela~\ref{tab:metricas} define cada métrica.
+As métricas foram definidas na análise Gaia (\path{docs/01}, §8.1) e são calculadas a partir do event log de cada run (\path{src/cemr/metrics/compute.py}). As de tempo contam desde o colapso, usam a mediana dentro de cada run e só incluem os incidentes detetáveis, isto é, com um dispositivo ou uma testemunha. A Tabela~\ref{tab:metricas} lista as que usamos neste relatório. O M4 (tempo até ao DAE) e o M13 (equidade entre centro e periferia) também foram calculados, mas têm poucos valores por configuração (o M4 tem $n = 1$ em C2) e não os discutimos; estão em \path{results/summary.md}.
 
 \begin{table}[htbp]
 \centering
 \small
-\caption{Métricas usadas na avaliação.}\label{tab:metricas}
-\begin{tabularx}{\textwidth}{p{4.3cm}L}
+\caption{Métricas usadas.}\label{tab:metricas}
+\begin{tabularx}{\textwidth}{P{4.2cm}L}
 \toprule
 Métrica & Definição \\
 \midrule
-M1 latência de verificação & Tempo até à declaração do caso (P1/P2) \\
-M2 verificação & Precisão; recall sobre os incidentes detetáveis e sobre os reportados; falsos despachos por run (caso declarado e localizado onde não há doente) \\
-M3 tempo até RCP & Tempo até ao início da RCP (P1) e percentagem iniciada pela testemunha \\
-M4 tempo até DAE & Tempo até o DAE estar colocado no doente (P1) \\
-M5 tempo até EMS & Tempo até a ambulância chegar (P1/P2) \\
-M6 proxy de sobrevivência & Modelo de Larsen et al. (1993) para os P1 desfibrilháveis; serve só para comparar estratégias \\
+M1 latência de verificação & Tempo até à declaração do caso (P1 e P2) \\
+M2 verificação & Precisão dos casos declarados; recall sobre os P1/P2 detetáveis ou reportados; falsos despachos por run (caso declarado onde não há doente) \\
+M3 tempo até à RCP & Tempo até ao início da RCP (P1) e percentagem iniciada pela testemunha \\
+M5 tempo até à ambulância & Tempo até a ambulância chegar (P1 e P2) \\
+M6 proxy de sobrevivência & Fórmula de Larsen et al.\ (1993) aplicada aos P1 desfibrilháveis; serve só para comparar configurações \\
 M7 cobertura antes da EMS & Percentagem de P1 com voluntário (ou DAE) no local antes da ambulância \\
-M8 mensagens & Mensagens por candidato a caso, sem as de fundo (registos P25, gossip P23, heartbeats P27) \\
-M9 distância ao oráculo & Atraso do primeiro voluntário face ao B0, contado desde a declaração \\
-M10 carga dos voluntários & Alertas por voluntário, índice de Jain das tarefas, minutos gastos em falsos alarmes \\
-M11 exposição & Agentes que recebem a localização exata ou dados clínicos, por caso \\
-M12 robustez & Tempo até o sucessor assumir os casos de um hub que falhou; casos órfãos \\
-M13 equidade & M3 no centro da cidade e na periferia \\
+M8 mensagens & Mensagens por candidato a caso, sem as de fundo (registos, gossip de reputação e heartbeats) \\
+M9 distância ao oráculo & Atraso do primeiro voluntário face ao B0 \\
+M10 carga dos voluntários & Alertas por voluntário, índice de Jain das tarefas e minutos gastos em falsos alarmes \\
+M11 exposição & Agentes que recebem a localização exata do doente, por caso \\
+M12 recuperação & Tempo até o sucessor assumir os casos de um hub que falhou; casos órfãos \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Além das métricas, o verificador de regras (\path{src/cemr/metrics/check.py}) relê o event log de cada run e conta as violações das regras organizacionais da análise Gaia (um só dono por caso, uma reserva por DAE, divulgação só a quem precisa, entre outras) e da regra DUP, acrescentada no desenho: nenhum incidente tratado por dois casos declarados.
+\subsection{Procedimento e análise estatística}\label{sec:estat}
 
-\subsection{Análise estatística}\label{sec:estat}
+Cada configuração correu com as seeds 1 a 10, num total de 210 runs de 60 minutos simulados, com o relógio acelerado 10 vezes. Os 210 runs são válidos (o relógio simulado avançou como devia) e foram todos feitos sobre o mesmo commit (\texttt{de13290}). A seed fixa a cidade, as posições iniciais e o traço de incidentes, por isso as configurações de um mesmo cenário veem exatamente os mesmos incidentes.
 
-Para cada configuração apresentamos a média sobre as seeds com o intervalo de confiança a 95~\% da t de Student. Como as seeds são as mesmas em todas as configurações de um cenário, a comparação principal é emparelhada: para cada seed calculamos variante $-$ nosso, e reportamos a média dessas diferenças com o seu IC a 95~\% e em quantas seeds o nosso foi melhor. Uma diferença cujo IC exclui 0 está acima da variação entre seeds; quando o IC inclui 0, não tiramos conclusões.
+Para cada configuração apresentamos a média sobre as seeds com o intervalo de confiança (IC) a 95~\% da t de Student. As comparações são emparelhadas por seed: para cada seed calculamos a diferença variante $-$ nosso, e reportamos a média dessas diferenças, o seu IC a 95~\% e em quantas seeds o nosso sistema foi melhor. Só tiramos conclusões de diferenças cujo IC exclui 0.
 
-Uma métrica fica indefinida num run quando não há eventos para a medir (por exemplo, M3 sem nenhuma RCP). O n de cada célula das tabelas é o número de seeds em que a métrica existe. Isto tem um efeito a ter em conta: em C1, a B1 tem M3 só em 7 das 10 seeds, porque nas outras três ninguém chegou a fazer RCP; a sua média de M3 é por isso otimista.
+Uma métrica fica indefinida num run sem eventos para a medir, por exemplo o M3 num run em que ninguém chegou a fazer RCP. O $n$ de cada média é o número de seeds em que a métrica existe. Isto torna otimistas algumas médias da B1: em C1, a B1 só tem M3 em 7 das 10 seeds, porque nas outras três ninguém fez RCP.
 
-\subsection{Reprodução}
+O verificador de regras (\path{src/cemr/metrics/check.py}) relê o event log de cada run e conta as violações das regras organizacionais da análise Gaia (um só dono por caso, uma reserva por DAE, divulgação da localização só a quem precisa, entre outras) e da regra DUP (nenhum doente com dois casos declarados). Os resultados reproduzem-se com:
 
 \begin{Verbatim}[frame=single,fontsize=\footnotesize]
 python experiments/run_matrix.py --matrix main --seeds 1-10 --workers 4
@@ -173,225 +115,190 @@ python experiments/analyse.py        # summary, paired, misses e figuras em resu
 python -m cemr.metrics.check runs/main/<run> -v
 \end{Verbatim}
 
-Cada run guarda a configuração usada (\path{config.json}) e as métricas com um veredicto de validade (\path{summary.json}), e o \path{analyse.py} só junta runs da mesma versão do sistema.
+\section{Resultados}\label{sec:resultados}
 
-\FloatBarrier
-\section{Resultados por cenário}\label{sec:resultados}
-
-A Tabela~\ref{tab:resumo} resume a comparação com a B1 nos cinco cenários, e as subsecções seguintes detalham cada um. As figuras mostram as médias com IC a 95~\% de seis métricas por cenário; as legendas internas estão em inglês (``Ours'' é o nosso sistema e ``B1 naive broadcast'' a B1). As versões emparelhadas estão em \path{results/fig_c*_paired.png}. No texto, ``$\Delta$'' é a diferença emparelhada variante $-$ nosso.
+Os números desta secção vêm de \path{results/summary.md} (médias), \path{results/paired.md} (diferenças emparelhadas) e \path{results/misses.md} (incidentes falhados por motivo). A Tabela~\ref{tab:b1} compara o nosso sistema com a B1 nos cinco cenários, e a Figura~\ref{fig:m3} mostra o tempo até à RCP.
 
 \begin{table}[htbp]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\caption{Diferença emparelhada B1 $-$ nosso por cenário: média $\pm$ IC a 95~\% e, entre parênteses, em quantas seeds o nosso sistema foi melhor. Em M3, nos falsos despachos e nos alertas, um $\Delta$ positivo favorece o nosso sistema; em M6, um $\Delta$ negativo favorece o nosso sistema; em M1, um $\Delta$ negativo favorece a B1. Fonte: \texttt{results/paired.md}.}\label{tab:resumo}
-\begin{tabular}{lccccc}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption{Nosso sistema e B1 nos cinco cenários: médias sobre as seeds, com IC a 95~\%. As médias de M3 da B1 usam 7, 3, 10, 9 e 6 seeds (secção~\ref{sec:estat}).}\label{tab:b1}
+\begin{tabular}{llccccc}
 \toprule
-Cenário & M3 RCP (s) & M6 sobrev. (p.p.) & Falsos desp./run & Alertas/volunt. & M1 declaração (s) \\
+Métrica & & C1 & C2 & C3 & C4 & C5 \\
 \midrule
-C1 & +258,0 $\pm$ 39,3 (7/7) & $-$10,5 $\pm$ 1,7 (10/10) & 0,0 & +1,1 $\pm$ 0,4 (10/10) & $-$7,0 $\pm$ 2,7 (0/10) \\
-C2 & +216,6 $\pm$ 445,5 (2/2) & $-$9,3 $\pm$ 4,5 (6/7) & +4,7 $\pm$ 1,4 (10/10) & +3,0 $\pm$ 0,9 (10/10) & $-$9,7 $\pm$ 5,6 (0/7) \\
-C3 & +286,4 $\pm$ 76,4 (10/10) & $-$10,9 $\pm$ 5,7 (8/8) & 0,0 & +1,3 $\pm$ 0,4 (10/10) & $-$10,3 $\pm$ 2,3 (0/10) \\
-C4 & +258,5 $\pm$ 91,3 (9/9) & $-$7,0 $\pm$ 4,7 (9/10) & 0,0 & +1,2 $\pm$ 0,5 (10/10) & $-$13,6 $\pm$ 7,7 (0/10) \\
-C5 & +196,9 $\pm$ 132,8 (5/5) & $-$8,8 $\pm$ 4,3 (6/7) & +4,1 $\pm$ 1,2 (10/10) & +3,2 $\pm$ 0,5 (10/10) & $-$9,3 $\pm$ 3,9 (0/8) \\
+M1 declaração (s) & Nosso & 33,5 $\pm$ 10,7 & 40,6 $\pm$ 13,8 & 49,5 $\pm$ 3,5 & 41,3 $\pm$ 9,0 & 39,9 $\pm$ 12,9 \\
+ & B1 & 26,4 $\pm$ 8,6 & 30,5 $\pm$ 10,7 & 39,1 $\pm$ 4,7 & 27,7 $\pm$ 10,0 & 30,6 $\pm$ 10,6 \\
+\addlinespace
+M2 precisão (\%) & Nosso & 100 & 23 $\pm$ 14 & 100 & 100 & 28 $\pm$ 15 \\
+ & B1 & 100 & 25 $\pm$ 11 & 100 & 100 & 15 $\pm$ 8 \\
+\addlinespace
+M2 recall, detetáveis (\%) & Nosso & 93 $\pm$ 12 & 76 $\pm$ 33 & 80 $\pm$ 11 & 96 $\pm$ 7 & 83 $\pm$ 26 \\
+ & B1 & 93 $\pm$ 12 & 83 $\pm$ 26 & 82 $\pm$ 10 & 96 $\pm$ 7 & 83 $\pm$ 26 \\
+\addlinespace
+M2 falsos despachos/run & Nosso & 0 & 4,7 $\pm$ 2,0 & 0 & 0 & 3,0 $\pm$ 0,7 \\
+ & B1 & 0 & 9,4 $\pm$ 2,1 & 0 & 0 & 7,1 $\pm$ 1,1 \\
+\addlinespace
+M3 tempo até à RCP (s) & Nosso & 52 $\pm$ 12 & 66 $\pm$ 26 & 75 $\pm$ 25 & 164 $\pm$ 108 & 83 $\pm$ 64 \\
+ & B1 & 307 $\pm$ 41 & 271 $\pm$ 134 & 362 $\pm$ 81 & 383 $\pm$ 83 & 280 $\pm$ 61 \\
+\addlinespace
+M6 sobrevivência (\%) & Nosso & 41,8 $\pm$ 4,7 & 36,2 $\pm$ 14,9 & 24,8 $\pm$ 10,8 & 16,1 $\pm$ 6,8 & 36,7 $\pm$ 15,2 \\
+ & B1 & 31,3 $\pm$ 4,0 & 26,9 $\pm$ 11,5 & 13,9 $\pm$ 7,0 & 9,1 $\pm$ 5,4 & 27,9 $\pm$ 12,0 \\
+\addlinespace
+M7 voluntário antes da EMS (\%) & Nosso & 82 $\pm$ 17 & 56 $\pm$ 41 & 75 $\pm$ 16 & 91 $\pm$ 11 & 56 $\pm$ 41 \\
+ & B1 & 56 $\pm$ 32 & 26 $\pm$ 33 & 49 $\pm$ 15 & 70 $\pm$ 23 & 48 $\pm$ 39 \\
+\addlinespace
+M8 mensagens/candidato & Nosso & 166 $\pm$ 10 & 105 $\pm$ 7 & 218 $\pm$ 16 & 131 $\pm$ 15 & 111 $\pm$ 12 \\
+ & B1 & 127 $\pm$ 5 & 93 $\pm$ 8 & 146 $\pm$ 11 & 94 $\pm$ 10 & 110 $\pm$ 6 \\
+\addlinespace
+M10 alertas/voluntário & Nosso & 1,3 $\pm$ 0,6 & 3,0 $\pm$ 0,9 & 4,5 $\pm$ 0,5 & 1,9 $\pm$ 0,6 & 2,3 $\pm$ 0,7 \\
+ & B1 & 2,4 $\pm$ 1,0 & 5,9 $\pm$ 0,1 & 5,8 $\pm$ 0,3 & 3,1 $\pm$ 1,0 & 5,4 $\pm$ 0,5 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-O ganho em M3 aparece em todos os cenários e em todas as seeds com RCP nas duas configurações. Em C2 o n é 2, porque só em duas seeds houve RCP com as duas, e o IC é demasiado largo para uma conclusão nesse cenário. Em sentido contrário, em nenhuma seed de nenhum cenário o nosso sistema declarou mais depressa do que a B1.
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar,
+  bar width=10pt,
+  width=0.85\textwidth,
+  height=6cm,
+  symbolic x coords={C1,C2,C3,C4,C5},
+  xtick=data,
+  ymin=0,
+  ylabel={Tempo até à RCP (s)},
+  enlarge x limits=0.15,
+  legend style={at={(0.5,1.03)}, anchor=south, legend columns=3, draw=none,
+    /tikz/every even column/.append style={column sep=0.6cm}},
+  legend image code/.code={\draw[#1] (0cm,-0.1cm) rectangle (0.3cm,0.15cm);},
+  error bars/y dir=both,
+  error bars/y explicit,
+  error bars/error bar style={black},
+]
+\addplot[fill=black!75, draw=black] coordinates {
+  (C1,52.2) +- (0,12.4) (C2,65.8) +- (0,26.4) (C3,75.1) +- (0,25.2)
+  (C4,164.4) +- (0,107.5) (C5,82.8) +- (0,64.0)};
+\addplot[fill=black!35, draw=black] coordinates {
+  (C1,229.8) +- (0,51.8) (C3,339.3) +- (0,36.6) (C4,411.1) +- (0,52.2)};
+\addplot[fill=white, draw=black] coordinates {
+  (C1,306.5) +- (0,41.3) (C2,270.8) +- (0,134.3) (C3,361.6) +- (0,81.0)
+  (C4,383.1) +- (0,83.0) (C5,279.5) +- (0,61.0)};
+\legend{Nosso, Sem guia, B1}
+\end{axis}
+\end{tikzpicture}
+\caption{M3, tempo até à RCP nos P1: média sobre as seeds com IC a 95~\%. A variante sem guia só correu em C1, C3 e C4.}\label{fig:m3}
+\end{figure}
 
-\subsection{C1 base urbana}\label{sec:c1}
+Em todos os cenários, o nosso sistema põe alguém a fazer RCP 2 a 6 vezes mais cedo do que a B1, e o proxy de sobrevivência fica 7 a 11 pontos acima. As diferenças emparelhadas de M3 excluem 0 em C1, C3, C4 e C5 (em C1, +258 $\pm$ 39 s, com o nosso melhor nas 7 seeds em que as duas configurações têm RCP). Em C2 só duas seeds têm RCP nas duas configurações, e o IC é demasiado largo para uma conclusão. As diferenças de M6 excluem 0 nos cinco cenários.
+
+A Figura~\ref{fig:m3} mostra também de onde vem este ganho. Sem guia, o tempo até à RCP do nosso sistema aproxima-se do da B1: em C3 e C4 a diferença entre os dois não se distingue de zero, e em C1 fica 55 s abaixo. A maior parte do ganho na RCP vem, portanto, da guia da testemunha, e não da coordenação entre agentes. A coordenação nota-se noutras métricas: menos alertas por voluntário (M10) em todos os cenários e, nos cenários com falsos alarmes, metade ou menos dos falsos despachos. Também põe um voluntário no local antes da ambulância em mais casos (M7), mas essa diferença só exclui 0 em C3 e, na comparação B1 $-$ sem guia, em C4; em C1, C2 e C5 o IC inclui 0.
+
+Em sentido contrário, o nosso sistema declara os casos mais tarde em todos os cenários (M1), e em nenhuma seed de nenhum cenário declarou mais depressa do que a B1. A secção~\ref{sec:tradeoffs} discute este custo.
+
+A Tabela~\ref{tab:efeitos} reúne as diferenças emparelhadas das variantes, que as subsecções seguintes discutem cenário a cenário.
 
 \begin{table}[htbp]
 \centering
-\small
-\caption{C1 base urbana: médias sobre as seeds, com IC a 95~\%. A média de M3 da B1 usa 7 seeds e a da perda de 20~\% usa 9 (secção~\ref{sec:estat}).}\label{tab:c1}
-\begin{tabularx}{\textwidth}{Lccccc}
+\footnotesize
+\caption{Efeito de cada variante: diferença emparelhada variante $-$ nosso, média $\pm$ IC a 95~\%, e em quantas seeds o nosso sistema foi melhor. Nas linhas ``B1 $-$ sem guia'' a referência é a variante sem guia, e a última coluna conta as seeds em que ela foi melhor do que a B1. ``p.p.'' são pontos percentuais.}\label{tab:efeitos}
+\begin{tabularx}{\textwidth}{llLrc}
 \toprule
-Métrica & Nosso & B1 & Sem guia & Perda 10~\% & Perda 20~\% \\
+Cenário & Variante & Métrica & $\Delta$ & Melhor \\
 \midrule
-M1 verificação (s) & 33,5 $\pm$ 10,7 & 26,4 $\pm$ 8,6 & 33,6 $\pm$ 10,5 & 39,9 $\pm$ 13,7 & 41,8 $\pm$ 8,0 \\
-M2 recall, reportados (\%) & 100,0 & 100,0 & 100,0 & 100,0 & 84,2 $\pm$ 22,9 \\
-M3 tempo até RCP (s) & 52,2 $\pm$ 12,4 & 306,5 $\pm$ 41,3 & 229,8 $\pm$ 51,8 & 175,4 $\pm$ 108,3 & 176,7 $\pm$ 114,1 \\
-M3 RCP pela testemunha (\%) & 95,0 $\pm$ 11,3 & 0,0 & 0,0 & 55,0 $\pm$ 31,3 & 66,7 $\pm$ 33,3 \\
-M6 sobrevivência (\%) & 41,8 $\pm$ 4,7 & 31,3 $\pm$ 4,0 & 34,7 $\pm$ 4,6 & 28,5 $\pm$ 9,0 & 20,0 $\pm$ 11,7 \\
-M8 mensagens por candidato & 165,8 $\pm$ 10,1 & 127,1 $\pm$ 4,7 & 160,8 $\pm$ 9,7 & 118,9 $\pm$ 15,4 & 110,2 $\pm$ 37,2 \\
-M10 alertas por voluntário & 1,3 $\pm$ 0,6 & 2,4 $\pm$ 1,0 & 1,3 $\pm$ 0,6 & 1,3 $\pm$ 0,7 & 1,1 $\pm$ 0,4 \\
-Violações de regras (por run) & 0,0 & 0,0 & 0,0 & 0,2 $\pm$ 0,3 & 0,4 $\pm$ 0,5 \\
+C1 & Sem guia & M3 tempo até à RCP (s) & +178 $\pm$ 51 & 10/10 \\
+   & Sem guia & M6 sobrevivência (p.p.) & $-$7,0 $\pm$ 2,6 & 10/10 \\
+   & B1 $-$ sem guia & M3 tempo até à RCP (s) & +55 $\pm$ 51 & 6/7 \\
+   & B1 $-$ sem guia & M10 alertas por voluntário & +1,1 $\pm$ 0,4 & 10/10 \\
+   & Perda 10~\% & M3 tempo até à RCP (s) & +123 $\pm$ 102 & 10/10 \\
+   & Perda 10~\% & M3 RCP pela testemunha (p.p.) & $-$40 $\pm$ 33 & 5/10 \\
+   & Perda 20~\% & M6 sobrevivência (p.p.) & $-$21,8 $\pm$ 12,3 & 10/10 \\
+   & Perda 20~\% & M2 recall, reportados (p.p.) & $-$16 $\pm$ 23 & 3/10 \\
+\addlinespace
+C2 & Sem reputação & M2 falsos despachos/run & +1,1 $\pm$ 0,8 & 6/10 \\
+   & Sem reputação & M10 minutos em falsos alarmes & +11,8 $\pm$ 9,0 & 8/10 \\
+   & AlertFirst & M2 falsos despachos/run & $-$0,1 $\pm$ 0,2 & 0/10 \\
+   & AlertFirst & M8 mensagens/candidato & $-$12 $\pm$ 4 & 0/10 \\
+   & ConfirmFirst & M1 declaração (s) & +3,9 $\pm$ 10,5 & 5/7 \\
+   & ConfirmFirst & M8 mensagens/candidato & +16 $\pm$ 8 & 10/10 \\
+\addlinespace
+C3 & Sem guia & M3 tempo até à RCP (s) & +264 $\pm$ 34 & 10/10 \\
+   & B1 $-$ sem guia & M3 tempo até à RCP (s) & +22 $\pm$ 68 & 6/10 \\
+   & B1 $-$ sem guia & M7 voluntário antes da EMS (p.p.) & $-$25 $\pm$ 17 & 7/10 \\
+   & $k = 1$ & M11 agentes com a localização & $-$1,1 $\pm$ 0,4 & 0/10 \\
+   & $k = 1$ & M10 índice de Jain & $-$0,2 $\pm$ 0,1 & 9/10 \\
+   & $k = 3$ & M11 agentes com a localização & +1,7 $\pm$ 0,8 & 9/10 \\
+   & $k = 3$ & M9 distância ao oráculo (s) & $-$19 $\pm$ 49 & 4/10 \\
+\addlinespace
+C4 & Sem guia & M3 tempo até à RCP (s) & +247 $\pm$ 97 & 9/10 \\
+   & B1 $-$ sem guia & M3 tempo até à RCP (s) & $-$18 $\pm$ 117 & 3/9 \\
+   & B1 $-$ sem guia & M7 voluntário antes da EMS (p.p.) & $-$25 $\pm$ 23 & 5/10 \\
+   & B1 $-$ sem guia & M7 DAE antes da EMS (p.p.) & $-$34 $\pm$ 31 & 6/10 \\
+\addlinespace
+C5 & Sem reputação & M2 falsos despachos/run & +3,9 $\pm$ 1,4 & 10/10 \\
+   & Sem reputação & M2 precisão (p.p.) & $-$12,5 $\pm$ 8,4 & 8/10 \\
+   & Sem reputação & M10 minutos em falsos alarmes & +24,1 $\pm$ 14,7 & 9/10 \\
+   & Sem reputação & M3 tempo até à RCP (s) & $-$0,3 $\pm$ 36,8 & 3/7 \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.85\textwidth]{fig_c1.png}
-\caption{Médias por configuração em C1, com IC a 95~\%.}\label{fig:c1}
-\end{figure}
-
-Na cidade base (Tabela~\ref{tab:c1} e Figura~\ref{fig:c1}), o fluxo completo funciona: a precisão é de 100~\% em todas as configurações, o recall sobre os incidentes reportados também, exceto com 20~\% de perda, e não há falsos despachos. O nosso sistema põe alguém a fazer RCP em 52 s, contra 307 s com a B1 ($\Delta$ = +258 $\pm$ 39 s, melhor em 7 de 7 seeds). O proxy de sobrevivência sobe de 31,3~\% para 41,8~\% ($\Delta$ = $-$10,5 $\pm$ 1,7 pontos para a B1).
-
-A variante sem guia separa as duas causas deste ganho. Sem guia, o M3 sobe para 230 s ($\Delta$ = +178 $\pm$ 51 s): a maior parte do ganho vem de a testemunha começar a RCP guiada pelo telemóvel, que acontece em 95~\% dos casos. Para medir só a coordenação (verificação, Contract Net e reputação), comparamos duas configurações que não têm guia, B1 e ``sem guia'': a coordenação encurta a RCP em 55 $\pm$ 51 s, melhor em 6 de 7 seeds, aproxima o primeiro voluntário do oráculo em 63 $\pm$ 45 s (M9) e reduz os alertas por voluntário em 1,1 $\pm$ 0,4. O IC do M3 exclui 0, mas por pouco.
-
-A perda de mensagens degrada o sistema de forma visível. Com 10~\% de perda, o M3 sobe 123 $\pm$ 102 s e a RCP iniciada pela testemunha cai de 95~\% para 55~\%; com 20~\%, o M6 cai 21,8 $\pm$ 12,3 pontos e o recall sobre os reportados cai para 84~\% ($\Delta$ = $-$15,8 $\pm$ 22,9, IC que inclui 0). Com perda, a média do proxy de sobrevivência fica abaixo da da B1 sem perda (28,5~\% com 10~\% e 20,0~\% com 20~\%, contra 31,3~\%), embora estas configurações não tenham sido comparadas seed a seed com a B1. A queda da RCP pela testemunha tem uma explicação provável no código: a ativação da guia (P05) é enviada uma só vez a cada testemunha (\path{activate_guidance} em \path{src/cemr/agents/case_verify.py}) e, ao contrário da triagem, não é reenviada quando se perde. Não confirmámos esta explicação nos event logs. As duas variantes com perda são também as únicas configurações de C1 com violações de regras: cinco casos duplicados entre células (DUP) e uma violação de OL3 em 20 runs.
-
 \FloatBarrier
-\subsection{C2 ruído e falsos alarmes}\label{sec:c2}
+\subsection{C1 base urbana}
 
-\begin{table}[htbp]
-\centering
-\small
-\caption{C2 ruído e falsos alarmes: médias sobre as seeds, com IC a 95~\%.}\label{tab:c2}
-\begin{tabularx}{\textwidth}{Lccccc}
-\toprule
-Métrica & Nosso & B1 & AlertFirst & ConfirmFirst & Sem reputação \\
-\midrule
-M1 verificação (s) & 40,6 $\pm$ 13,8 & 30,5 $\pm$ 10,7 & 39,3 $\pm$ 13,6 & 47,3 $\pm$ 10,7 & 41,0 $\pm$ 13,8 \\
-M2 precisão (\%) & 23,1 $\pm$ 13,8 & 24,9 $\pm$ 10,6 & 22,5 $\pm$ 14,9 & 24,9 $\pm$ 13,4 & 22,6 $\pm$ 12,1 \\
-M2 recall, detetáveis (\%) & 75,6 $\pm$ 33,4 & 83,0 $\pm$ 25,7 & 75,6 $\pm$ 33,4 & 79,3 $\pm$ 28,5 & 79,3 $\pm$ 28,5 \\
-M2 falsos despachos por run & 4,7 $\pm$ 2,0 & 9,4 $\pm$ 2,1 & 4,6 $\pm$ 2,0 & 4,9 $\pm$ 1,9 & 5,8 $\pm$ 2,3 \\
-M8 mensagens por candidato & 104,7 $\pm$ 7,0 & 93,3 $\pm$ 7,5 & 93,0 $\pm$ 5,9 & 120,4 $\pm$ 9,8 & 111,5 $\pm$ 5,9 \\
-M10 alertas por voluntário & 3,0 $\pm$ 0,9 & 5,9 $\pm$ 0,1 & 2,9 $\pm$ 0,9 & 3,1 $\pm$ 0,7 & 3,5 $\pm$ 0,9 \\
-M10 minutos em falsos alarmes & 47,7 $\pm$ 22,6 & 62,5 $\pm$ 18,9 & 48,0 $\pm$ 23,9 & 50,9 $\pm$ 22,0 & 59,5 $\pm$ 25,4 \\
-\bottomrule
-\end{tabularx}
-\end{table}
+Na cidade base, o fluxo completo funciona sem erros de verificação: precisão e recall sobre os incidentes reportados de 100~\%, nenhum falso despacho e nenhuma violação de regras. Com a guia, é a testemunha que começa 95~\% das RCP; sem ela, a RCP começa 178 s mais tarde. A coordenação sozinha (B1 $-$ sem guia) encurta a RCP em 55 $\pm$ 51 s, um IC que exclui 0 por pouco, e reduz os alertas por voluntário.
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.85\textwidth]{fig_c2.png}
-\caption{Médias por configuração em C2, com IC a 95~\%.}\label{fig:c2}
-\end{figure}
+A perda de mensagens nas ligações dos telemóveis é onde o sistema mais se degrada. Com 10~\% de perda, a RCP começa 123 s mais tarde e a percentagem iniciada pela testemunha cai de 95~\% para 55~\%. Com 20~\%, o proxy de sobrevivência cai para 20,0~\%, abaixo dos 31,3~\% da B1 sem perda (esta comparação não é emparelhada), e o recall sobre os reportados cai para 84~\%, com um IC que inclui 0. Uma explicação provável está no código: a ativação da guia (P05) é enviada uma só vez a cada testemunha (\path{activate_guidance} em \path{src/cemr/agents/case_verify.py}) e não é reenviada quando se perde. Não a confirmámos nos event logs. As duas variantes com perda somam 6 das 16 violações de regras da matriz: cinco casos duplicados entre células (DUP) e uma testemunha que disse que o doente não respondia e não chegou a receber a guia (regra OL3).
 
-Com sensores ruidosos (Tabela~\ref{tab:c2} e Figura~\ref{fig:c2}), a precisão é baixa em todas as configurações, entre 22~\% e 25~\%, e não difere entre o nosso sistema e a B1 ($\Delta$ = +1,8 $\pm$ 12,1). A precisão baixa é em parte estrutural: há cerca de dois incidentes P1/P2 por run (23 em 10 seeds), e com tão poucos casos verdadeiros alguns falsos despachos chegam para a fazer cair. A diferença está no número de falsos despachos, que a verificação corta para metade (4,7 contra 9,4 por run; $\Delta$ = +4,7 $\pm$ 1,4, melhor em 10 de 10 seeds). Quase todos os que a B1 tem a mais vêm só de sensores (7,4 contra 2,9 por run), e são precisamente os que a corroboração e a pergunta ao portador filtram. Os falsos despachos com testemunha quase não mudam (1,8 contra 2,0): uma testemunha que lê mal a cena passa a verificação pelo ramo do relato humano fiável. A verificação também poupa os voluntários: 3,0 alertas por voluntário contra 5,9, e 15 $\pm$ 11 minutos a menos gastos em falsos alarmes por run.
+\subsection{C2 ruído e falsos alarmes}
 
-O custo aparece no recall. A B1 apanha mais 7,4 pontos de recall sobre os detetáveis, embora com um IC de $\pm$17,1 que inclui 0. Segundo o diagnóstico de \path{results/misses.md}, em 23 P1/P2 o nosso sistema perdeu mais dois do que a B1: um descartado como P3 e um fundido com outro doente. A B1, que declara no primeiro alerta, não tem perdas destes tipos.
+Com sensores ruidosos, a precisão fica entre 22~\% e 25~\% em todas as configurações e não difere entre o nosso sistema e a B1 ($\Delta$ = +1,8 $\pm$ 12,1). Parte da explicação é estrutural: há cerca de dois P1/P2 por run (23 nas dez seeds), e com tão poucos casos verdadeiros alguns falsos despachos chegam para baixar a precisão. A verificação nota-se no número de falsos despachos, que cai para metade (4,7 contra 9,4 por run; $\Delta$ = +4,7 $\pm$ 1,4, melhor nas 10 seeds). Quase toda a diferença está nos alertas só de sensores (2,9 contra 7,4 por run), que são os que a corroboração filtra. Os falsos despachos com testemunha quase não mudam (1,8 contra 2,0), porque uma testemunha que lê mal a cena passa a verificação como relato humano fiável.
 
-As duas políticas do sensor dão resultados quase iguais. Nenhuma diferença emparelhada de precisão, recall, falsos despachos ou M1 exclui 0; a média de M1 da ConfirmFirst é maior (47 contra 39 s), mas o IC emparelhado face ao nosso é de +3,9 $\pm$ 10,5 s. A diferença clara é o custo em mensagens: a AlertFirst gasta 11,7 $\pm$ 4,3 mensagens a menos por candidato e a ConfirmFirst 15,7 $\pm$ 7,8 a mais. A reputação tem aqui um efeito pequeno mas mensurável: sem ela há mais 1,1 $\pm$ 0,8 falsos despachos por run e mais 11,8 $\pm$ 9,0 minutos em falsos alarmes. Cada sensor com deriva dá 3 falsos positivos por hora (\path{docs/03} §7), por isso em 60 minutos a reputação tem poucos casos de onde aprender.
+O custo está no recall. A B1 tem mais 7,4 $\pm$ 17,1 pontos sobre os detetáveis, um IC que inclui 0. No total das seeds, o nosso sistema perdeu dois P1/P2 que a B1 apanhou: um descartado como P3 na triagem e outro fundido com o caso de outro doente.
 
-\FloatBarrier
-\subsection{C3 pico com contenção}\label{sec:c3}
+As políticas AlertFirst e ConfirmFirst não diferem da adaptativa em precisão, recall, falsos despachos ou M1; só nas mensagens, com a AlertFirst a gastar menos 12 por candidato e a ConfirmFirst mais 16. Com o hub a corroborar os alertas, perguntar primeiro ao portador não trouxe nada mensurável. A reputação tem aqui um efeito pequeno (mais 1,1 falsos despachos por run sem ela, melhor em 6 de 10 seeds): cada sensor em deriva dá cerca de três falsos positivos por hora, e em 60 minutos são poucos casos para a confiança nele descer.
 
-\begin{table}[htbp]
-\centering
-\small
-\caption{C3 pico com contenção: médias sobre as seeds, com IC a 95~\%.}\label{tab:c3}
-\begin{tabularx}{\textwidth}{Lccccc}
-\toprule
-Métrica & Nosso ($k = 2$) & B1 & $k = 1$ & $k = 3$ & Sem guia \\
-\midrule
-M2 recall, detetáveis (\%) & 80,3 $\pm$ 10,8 & 81,5 $\pm$ 9,6 & 80,3 $\pm$ 10,8 & 80,3 $\pm$ 10,8 & 81,5 $\pm$ 9,6 \\
-M3 tempo até RCP (s) & 75,1 $\pm$ 25,2 & 361,6 $\pm$ 81,0 & 75,4 $\pm$ 24,9 & 75,0 $\pm$ 25,0 & 339,3 $\pm$ 36,6 \\
-M7 voluntário antes da EMS (\%) & 74,5 $\pm$ 16,2 & 49,2 $\pm$ 15,4 & 76,3 $\pm$ 15,0 & 79,6 $\pm$ 16,6 & 74,5 $\pm$ 16,2 \\
-M8 mensagens por candidato & 218,4 $\pm$ 16,0 & 146,3 $\pm$ 10,8 & 212,6 $\pm$ 15,9 & 232,0 $\pm$ 18,8 & 208,7 $\pm$ 15,6 \\
-M9 distância ao oráculo (s) & 162,0 $\pm$ 48,5 & 195,8 $\pm$ 90,1 & 169,3 $\pm$ 46,3 & 143,2 $\pm$ 34,3 & 161,8 $\pm$ 48,7 \\
-M10 índice de Jain das tarefas & 0,5 $\pm$ 0,1 & 0,6 $\pm$ 0,1 & 0,3 $\pm$ 0,1 & 0,6 $\pm$ 0,1 & 0,5 $\pm$ 0,1 \\
-M11 agentes com a localização & 4,8 $\pm$ 0,6 & 5,1 $\pm$ 0,3 & 3,7 $\pm$ 0,3 & 6,5 $\pm$ 1,2 & 4,8 $\pm$ 0,7 \\
-\bottomrule
-\end{tabularx}
-\end{table}
+\subsection{C3 pico com contenção}
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.85\textwidth]{fig_c3.png}
-\caption{Médias por configuração em C3, com IC a 95~\%.}\label{fig:c3}
-\end{figure}
+No pico, o recall sobre os detetáveis é de 80~\%, igual ao da B1. Dos 94 P1/P2 das dez seeds, 9 eram indetetáveis, 14 não chegaram a ser reportados e 3 foram fundidos com o caso de outro doente. Estes 3 aparecem também na B1, por isso vêm da fusão de alertas próximos e não da verificação. As regras de exclusividade (um compromisso por voluntário, uma reserva por DAE) não foram violadas em nenhum dos 50 runs de C3.
 
-No pico de oito incidentes em dez minutos (Tabela~\ref{tab:c3} e Figura~\ref{fig:c3}), o sistema mantém os doentes separados na maior parte dos casos: o recall sobre os detetáveis é de 80~\%, igual ao da B1. Dos 94 P1/P2 das dez seeds, 9 são indetetáveis, 14 não chegaram a ser reportados e 3 foram fundidos com outro doente (\path{results/misses.md}). Estes três aparecem em todas as configurações, incluindo a B1, porque vêm da fusão de alertas por área e não da verificação. As regras de exclusividade (um compromisso por voluntário, uma reserva por DAE) não tiveram nenhuma violação em nenhuma das 50 runs de C3.
+A redundância $k$ não muda o tempo até à RCP (75 s com $k = 1$, 2 ou 3), porque com a guia é a testemunha que começa 86 a 88~\% das RCP. Muda os custos. Com $k = 3$, a localização exata do doente chega a mais 1,7 agentes por caso; com $k = 1$, chega a menos 1,1, mas as tarefas concentram-se em menos voluntários e o índice de Jain cai 0,2. O ganho de $k = 3$ na distância ao oráculo (19 s) tem um IC que inclui 0.
 
-A redundância $k$ quase não mexe no tempo até à RCP (75 s com $k = 1$, 2 e 3), porque com a guia é a testemunha que começa a RCP em 86 a 88~\% dos casos. O que $k$ muda são os custos. Com $k = 3$, a localização exata chega a mais 1,7 $\pm$ 0,8 agentes por caso e há mais 13,6 $\pm$ 5,1 mensagens por candidato; em troca, o primeiro voluntário fica 18,8 s mais perto do oráculo, com um IC de $\pm$49,0 s que inclui 0. Com $k = 1$ a exposição baixa ($-$1,1 $\pm$ 0,4 agentes), mas as tarefas concentram-se em menos voluntários: o índice de Jain cai 0,2 $\pm$ 0,1. Mantivemos $k = 2$ como compromisso entre exposição e equidade, sabendo que os dados não mostram um ganho de tempo com mais redundância.
+Sem guia, a coordenação não encurta a RCP face à B1 ($\Delta$ = +22 $\pm$ 68 s), mas põe um voluntário no local antes da ambulância em mais 25 pontos percentuais dos P1.
 
-Face à B1, a coordenação sem guia não encurta a RCP de forma clara ($\Delta$ = +22 $\pm$ 68 s), mas põe um voluntário no local antes da ambulância em mais 25 $\pm$ 17 pontos percentuais dos P1, com menos alertas por voluntário (4,5 contra 5,8) e mais mensagens por candidato (B1 $-$ sem guia: $\Delta$ = $-$62 $\pm$ 8).
+\subsection{C4 periferia degradada}
 
-\FloatBarrier
-\subsection{C4 periferia degradada}\label{sec:c4}
+Na periferia, a ambulância demora em média 760 s, cerca de 13 minutos. O nosso sistema começa a RCP em 164 s, contra 383 s com a B1, e o proxy de sobrevivência sobe de 9,1~\% para 16,1~\%. A guia explica a diferença na RCP: sem ela, o M3 sobe para 411 s, e a coordenação sozinha não o encurta ($\Delta$ = $-$18 $\pm$ 117 s). O que a coordenação traz é chegar antes da ambulância: mais 25 pontos percentuais de P1 com voluntário e mais 34 com DAE, ambos com IC que exclui 0 por pouco.
 
-\begin{table}[htbp]
-\centering
-\small
-\caption{C4 periferia degradada: médias sobre as seeds, com IC a 95~\%. A média de M3 da B1 usa 9 seeds (secção~\ref{sec:estat}).}\label{tab:c4}
-\begin{tabularx}{\textwidth}{Lccc}
-\toprule
-Métrica & Nosso & B1 & Sem guia \\
-\midrule
-M3 tempo até RCP (s) & 164,4 $\pm$ 107,5 & 383,1 $\pm$ 83,0 & 411,1 $\pm$ 52,2 \\
-M3 RCP pela testemunha (\%) & 60,0 $\pm$ 26,5 & 0,0 & 0,0 \\
-M5 tempo até EMS (s) & 759,7 $\pm$ 79,2 & 831,6 $\pm$ 186,7 & 863,4 $\pm$ 216,6 \\
-M6 sobrevivência (\%) & 16,1 $\pm$ 6,8 & 9,1 $\pm$ 5,4 & 12,8 $\pm$ 6,5 \\
-M7 voluntário antes da EMS (\%) & 91,0 $\pm$ 10,8 & 70,2 $\pm$ 23,1 & 95,0 $\pm$ 7,5 \\
-M7 DAE antes da EMS (\%) & 46,5 $\pm$ 30,3 & 15,3 $\pm$ 15,4 & 49,7 $\pm$ 31,4 \\
-M12 recuperação após o crash (s) & 21,1 $\pm$ 1,7 & 22,2 $\pm$ 1,7 & 20,8 $\pm$ 1,9 \\
-Violações de regras (por run) & 0,0 & 0,3 $\pm$ 0,3 & 0,6 $\pm$ 0,5 \\
-\bottomrule
-\end{tabularx}
-\end{table}
+O hub 2 falha aos 1200 s em todos os runs de C4. O sucessor assume os casos em 21,1 $\pm$ 1,7 s, sem casos órfãos nos 30 runs. Este tempo é quase todo fixado pelos parâmetros (lease de três heartbeats de 5 s e um heartbeat de margem, 20 s), por isso o M12 mostra que o failover funciona, mas não mede uma propriedade emergente.
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.85\textwidth]{fig_c4.png}
-\caption{Médias por configuração em C4, com IC a 95~\%.}\label{fig:c4}
-\end{figure}
+O nosso sistema não teve violações de regras em C4. A B1 teve 3 e a variante sem guia 6, todas casos duplicados entre células. O aviso entre hubs vizinhos que resolve estes duplicados (P26) não é esperado antes da declaração, e com 5~\% de perda e zonas sem rede chega tarde ou perde-se mais vezes. Não analisámos porque é que a variante sem guia duplica mais casos do que o sistema completo.
 
-Na periferia (Tabela~\ref{tab:c4} e Figura~\ref{fig:c4}), a ambulância demora em média 12,7 minutos, e o intervalo até lá chegar é onde o sistema mais conta. O nosso sistema começa a RCP em 2,7 minutos, contra 6,4 com a B1 ($\Delta$ = +258 $\pm$ 91 s, melhor em 9 de 9 seeds), e o proxy de sobrevivência passa de 9,1~\% para 16,1~\%. A guia volta a explicar a maior parte da diferença na RCP: sem ela, o M3 sobe para 411 s. A coordenação sozinha não encurta a RCP (B1 $-$ sem guia: $\Delta$ = $-$18 $\pm$ 117 s), mas leva voluntários e DAE ao doente antes da ambulância mais vezes: mais 25 $\pm$ 23 pontos percentuais de voluntários e mais 34 $\pm$ 31 de DAE.
+\subsection{C5 fontes adversárias}
 
-O hub 2 cai aos 1200 s em todas as runs de C4. O sucessor assume os casos em 21,1 $\pm$ 1,7 s, sem nenhum caso órfão nas 30 runs. Este tempo é quase todo fixado pelos parâmetros: a lease dura três heartbeats de 5 s e o sucessor espera mais um heartbeat antes de assumir (\path{scenarios/defaults.toml}), o que dá 20 s. O M12 mostra que o failover funciona, mas não mede uma propriedade emergente.
+As duas fontes adversárias descrevem uma pessoa inconsciente que respira (P2), um relato que, sem reputação, passa a verificação como relato humano fiável. Com reputação, os falsos despachos caem de 6,9 para 3,0 por run (melhor nas 10 seeds), a precisão sobe de 15,8~\% para 28,3~\% e os voluntários gastam metade do tempo em falsos alarmes (22,9 contra 47,0 minutos por run). Não encontrámos custo nos casos verdadeiros: o tempo até à RCP e o recall são os mesmos com e sem reputação.
 
-A configuração principal não teve violações de regras em C4. A B1 teve 3 e a variante sem guia 6, todas casos duplicados entre células (DUP). O P26 resolve um duplicado com uma troca de avisos entre os dois hubs (\path{docs/02} §D8), mas o hub não espera pela resposta antes de declarar; se um aviso se perde ou chega depois da declaração, o doente fica com dois casos. C4 tem 5~\% de perda e zonas sem rede, o que torna isto mais provável. Não sabemos porque é que a variante sem guia duplica mais casos do que o sistema completo ($\Delta$ = +0,6 $\pm$ 0,5 por run); não analisámos esses runs.
+Os 3,0 falsos despachos que restam vêm da forma como o modelo Beta aprende. A confiança numa fonte só desce quando um caso em que ela participou é fechado como falso alarme (P21, \path{docs/03} §4.5), por isso os primeiros relatos de cada fonte adversária ainda passam.
 
-As métricas de equidade (M13) têm intervalos demasiado largos para uma conclusão (por exemplo, M3 no centro de 258 $\pm$ 244 s, com n = 6), por isso não as discutimos.
-
-\FloatBarrier
-\subsection{C5 fontes adversárias}\label{sec:c5}
-
-\begin{table}[htbp]
-\centering
-\small
-\caption{C5 fontes adversárias: médias sobre as seeds, com IC a 95~\%. As médias de M3 usam 7, 6 e 8 seeds (secção~\ref{sec:estat}).}\label{tab:c5}
-\begin{tabularx}{\textwidth}{Lccc}
-\toprule
-Métrica & Nosso & B1 & Sem reputação \\
-\midrule
-M2 precisão (\%) & 28,3 $\pm$ 15,0 & 15,3 $\pm$ 7,6 & 15,8 $\pm$ 7,6 \\
-M2 falsos despachos por run & 3,0 $\pm$ 0,7 & 7,1 $\pm$ 1,1 & 6,9 $\pm$ 1,2 \\
-M3 tempo até RCP (s) & 82,8 $\pm$ 64,0 & 279,5 $\pm$ 61,0 & 77,3 $\pm$ 44,8 \\
-M8 mensagens por candidato & 110,7 $\pm$ 12,2 & 109,7 $\pm$ 5,8 & 140,6 $\pm$ 10,7 \\
-M10 alertas por voluntário & 2,3 $\pm$ 0,7 & 5,4 $\pm$ 0,5 & 3,7 $\pm$ 0,8 \\
-M10 minutos em falsos alarmes & 22,9 $\pm$ 8,3 & 105,8 $\pm$ 12,9 & 47,0 $\pm$ 14,3 \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.85\textwidth]{fig_c5.png}
-\caption{Médias por configuração em C5, com IC a 95~\%.}\label{fig:c5}
-\end{figure}
-
-As duas fontes adversárias descrevem uma pessoa inconsciente que respira (P2); os resultados estão na Tabela~\ref{tab:c5} e na Figura~\ref{fig:c5}. Sem reputação, cada relato passa a verificação pelo ramo do relato humano fiável, e há 6,9 falsos despachos por run. Com a reputação, há 3,0 ($\Delta$ = +3,9 $\pm$ 1,4, melhor em 10 de 10 seeds), a precisão sobe de 15,8~\% para 28,3~\% e os voluntários gastam metade dos minutos em falsos alarmes ($\Delta$ = +24,1 $\pm$ 14,7). A reputação também poupa mensagens, porque há menos casos ($\Delta$ = +29,9 $\pm$ 8,2 mensagens por candidato sem ela).
-
-Não encontrámos custo para os casos verdadeiros: o tempo até à RCP é o mesmo com e sem reputação ($\Delta$ = $-$0,3 $\pm$ 36,8 s), e o recall não muda. Os 3,0 falsos despachos que restam vêm do modo como o modelo Beta aprende: a confiança numa fonte só desce quando um caso em que ela participou é fechado como falso alarme (P21, \path{docs/03} §4.5), por isso os primeiros relatos de cada fonte adversária ainda passam.
-
-\FloatBarrier
 \section{Trade-offs}\label{sec:tradeoffs}
 
-\paragraph{Verificar custa tempo.} A B1 declara no primeiro alerta, e o nosso sistema demora mais 7 a 14 s a declarar em todos os cenários ($\Delta$ de M1 entre $-$7,0 $\pm$ 2,7 s em C1 e $-$13,6 $\pm$ 7,7 s em C4). Esse atraso passa para a ambulância: com a B1 ela chega 6,6 $\pm$ 3,0 s mais cedo em C1 e 12,1 $\pm$ 3,7 s em C3. Em troca, os falsos despachos caem para metade em C2 e C5, e os voluntários recebem menos alertas. Como a RCP guiada começa durante a verificação (a guia é ativada com a triagem, antes da declaração, pela regra OL3), o atraso não chega à RCP.
+Verificar custa tempo. O nosso sistema declara os casos 7 a 14 s depois da B1 (diferença emparelhada de M1 entre 7,0 $\pm$ 2,7 s em C1 e 13,6 $\pm$ 7,7 s em C4), e esse atraso passa para a ambulância, que com a B1 chega 7 a 12 s mais cedo em C1, C2 e C3. Não passa para a RCP, porque a guia é ativada na triagem, antes da declaração. O que se ganha em troca depende do cenário. Com falsos alarmes (C2 e C5), os falsos despachos caem para metade ou menos. Sem falsos alarmes (C1, C3 e C4), a precisão é de 100~\% nas duas configurações, e a verificação só custa tempo.
 
-\paragraph{Mensagens contra fadiga dos voluntários.} O Contract Net troca mais mensagens por candidato do que a difusão ingénua: mais 30~\% em C1, 49~\% em C3 e 39~\% em C4. Em contrapartida, cada voluntário recebe menos alertas, de $-$22~\% (C3) a $-$57~\% (C5). Preferimos esta troca, porque o recurso escasso é a atenção dos voluntários e não a rede. As mensagens dos casos são, aliás, uma parte pequena do total: as mensagens de fundo (registos, gossip e heartbeats) são cerca de 16 000 por run, 97~\% do total em C1. É o custo fixo da descentralização, e não depende do número de incidentes.
+O nosso sistema troca mais mensagens por candidato do que a B1 (mais 30~\% em C1, 49~\% em C3 e 39~\% em C4), mas cada voluntário recebe menos alertas, de menos 22~\% em C3 a menos 57~\% em C5. Preferimos esta troca, porque o recurso escasso é a atenção dos voluntários e não a rede. As mensagens dos casos são, aliás, uma parte pequena do total: as de fundo (registos, gossip de reputação e heartbeats) são entre 14~600 e 16~200 por run, 97~\% do total em C1, e não dependem do número de incidentes. São o custo fixo da descentralização: a descoberta de voluntários e testemunhas, a partilha de reputação entre hubs e a deteção de hubs que falham.
 
-\paragraph{Redundância, exposição e proximidade do ótimo.} Mais voluntários por P1 aproximam o primeiro do oráculo ($k = 3$: 143 s, contra 169 s com $k = 1$, mas com IC que inclui 0) e espalham as tarefas, mas enviam a localização exata a mais agentes e trocam mais mensagens (secção~\ref{sec:c3}). Com a guia ativa, $k$ não muda o tempo até à RCP.
-
-\paragraph{Guia contra coordenação.} Em C1, C3 e C4, a guia da testemunha explica a maior parte do ganho na RCP. A coordenação acrescenta ganhos de outro tipo: voluntários e DAE antes da ambulância, menos alertas e menos falsos despachos. Só em C1 encurta também a RCP de forma clara.
-
-\paragraph{Política do sensor.} A adaptativa, a AlertFirst e a ConfirmFirst dão a mesma precisão e o mesmo recall em C2; a AlertFirst é a mais barata em mensagens. Não vemos razão para perguntar primeiro ao portador quando o hub já corrobora o alerta.
+Na redundância, mais voluntários por P1 espalham as tarefas e aproximam o primeiro voluntário do oráculo, mas enviam a localização exata do doente a mais pessoas. Com a guia ativa, $k$ não muda o tempo até à RCP, e o ganho de $k = 3$ em M9 não se distingue de zero. Mantivemos $k = 2$ como compromisso entre a exposição e a concentração das tarefas, sabendo que os dados não mostram um ganho de tempo com mais redundância.
 
 \section{Evolução do desenho}\label{sec:evolucao}
 
-Três alterações ao desenho vieram da leitura de matrizes anteriores. Cada uma foi medida nas mesmas seeds antes e depois (\path{results/evolution.md}, \path{docs/03} §7.1). Entre duas medições pode haver mais do que uma alteração, por isso cada linha mede o efeito de tudo o que mudou entre elas.
+Três alterações ao desenho vieram da leitura de matrizes anteriores. Cada uma foi medida nas mesmas seeds antes e depois (Tabela~\ref{tab:evolucao}; \path{results/evolution.md}, \path{docs/03} §7.1). Entre duas medições pode haver mais do que uma alteração, por isso cada linha mede o efeito de tudo o que mudou entre elas.
 
 \begin{table}[htbp]
 \centering
 \small
 \caption{Alterações ao desenho medidas nas mesmas seeds, antes e depois.}\label{tab:evolucao}
-\begin{tabularx}{\textwidth}{Lp{5.2cm}p{3.6cm}}
+\begin{tabularx}{\textwidth}{LP{4.2cm}P{4.6cm}}
 \toprule
 Alteração & Medida & Antes $\rightarrow$ depois \\
 \midrule
@@ -402,40 +309,33 @@ A mesma fonte conta uma só vez por candidato & C5, falsos despachos por run, se
 \end{tabularx}
 \end{table}
 
-A fusão por célula juntava num só caso dois doentes da mesma célula. A triagem repetida acabou com os P1/P2 descartados como P3 em C3 (de 3 para 0, segundo o diagnóstico de \path{misses.py}). A terceira alteração não teve efeito em C5, porque aí os falsos despachos vêm de testemunhas e cada uma envia um só relato por incidente. Mantivemo-la porque é a fusão de evidência correta (fontes independentes), e não por um ganho medido.
+A fusão por célula juntava num só caso dois doentes da mesma célula. A triagem repetida acabou com os P1/P2 descartados como P3 em C3 (de 3 para 0, segundo o diagnóstico de \path{src/cemr/metrics/misses.py}). A terceira alteração não teve efeito em C5, porque aí os falsos despachos vêm de testemunhas e cada uma envia um só relato por incidente. Mantivemo-la porque é a fusão de evidência correta (fontes independentes), e não por um ganho medido.
 
 \section{Limitações}\label{sec:limitacoes}
 
-O ambiente é sintético. A cidade é uma grelha de 3 $\times$ 3 km com distâncias de Manhattan, e o comportamento das pessoas (aceitar uma chamada, desistir da RCP, cansar-se) segue modelos com parâmetros escolhidos por nós, sem calibração empírica. A ambulância foi modelada com 240 s de ativação e 30 km/h; não encontrámos uma fonte para os tempos de resposta urbanos em Portugal, e os valores absolutos de M5 dependem diretamente desta escolha.
+O ambiente é sintético. A cidade é uma grelha de 3 $\times$ 3 km com deslocações de Manhattan, e o comportamento das pessoas (aceitar uma chamada, responder à triagem, desistir da RCP) segue modelos com parâmetros escolhidos por nós, sem calibração empírica. A ambulância tem 240 s de ativação e desloca-se a 30 km/h; não encontrámos uma fonte para os tempos de resposta urbanos em Portugal, e os valores absolutos de M5 e M6 dependem desta escolha.
 
-Não simulamos o caminho 112. Os incidentes sem dispositivo nem testemunha contam como falhados, e as métricas de tempo só cobrem os detetáveis. O recall sobre todos os incidentes é por isso um limite inferior, e a comparação com a B1 é feita sobre os mesmos incidentes, mas não com o sistema real de emergência.
+Não simulamos o caminho do 112. Os incidentes sem dispositivo nem testemunha contam como falhados, e as métricas de tempo só cobrem os detetáveis. A comparação com a B1 é feita sobre os mesmos incidentes, mas não com o sistema de emergência real. O M6 usa o modelo de Larsen et al.\ (1993), feito para paragens testemunhadas em fibrilhação ventricular; serve para comparar configurações e não é uma previsão clínica.
 
-O M6 usa o modelo de Larsen et al. (1993), feito para paragens testemunhadas em fibrilhação ventricular. É um proxy para comparar configurações, não uma previsão clínica.
+A amostra é pequena. Com 10 seeds de 60 minutos há poucos P1 por run (16 no total das seeds em C2 e C5), e várias métricas têm IC largos ou poucos valores. Runs mais longos dariam também mais tempo à reputação para aprender com sensores em deriva.
 
-A amostra é pequena. Com 10 seeds e 60 minutos simulados por run, há poucos P1 por run (16 em 10 seeds em C2 e C5), e várias métricas têm IC largos ou n reduzido: o M4 tem n = 1 em C2, e as médias da B1 em M3 excluem as seeds em que ninguém fez RCP. Runs mais longos dariam também mais tempo à reputação para aprender com sensores com deriva.
-
-Ficam dois defeitos conhecidos. Os casos duplicados entre células (15 das 16 violações de regras da matriz; nenhuma na configuração principal) aparecem quando um aviso P26 entre hubs vizinhos se perde ou chega depois da declaração. E a ativação da guia não é reenviada quando se perde, o que provavelmente explica a quebra da RCP pela testemunha com perda de mensagens.
+Ficam dois defeitos conhecidos. Os casos duplicados entre células (15 das 16 violações de regras da matriz, nenhuma na configuração principal) aparecem quando o aviso P26 entre hubs vizinhos se perde ou chega depois da declaração. E a ativação da guia não é reenviada quando se perde, o que provavelmente explica a quebra da RCP pela testemunha com perda de mensagens.
 
 Por fim, dentro de um processo o SPADE entrega as mensagens em memória, sem passar pelo servidor XMPP (\path{spikes/README.md}). A latência, a perda e as zonas sem rede vêm do nosso modelo de rede e não de uma rede real.
 
-\section{Conclusões e trabalho futuro}\label{sec:conclusoes}
+\section{Conclusões}\label{sec:conclusoes}
 
-O sistema chega ao doente mais cedo do que a difusão ingénua nos cinco cenários: a RCP começa 2 a 6 vezes mais cedo, e o proxy de sobrevivência sobe de 31~\% para 42~\% na cidade e de 9~\% para 16~\% na periferia. A maior parte deste ganho vem da guia da testemunha, e não da coordenação entre agentes; a coordenação traz sobretudo voluntários e DAE antes da ambulância, menos alertas por voluntário e metade dos falsos despachos com sensores ruidosos. A reputação trava fontes adversárias sem custo medido nos casos verdadeiros. O failover assume os casos de um hub que cai em cerca de 21 s, sem casos órfãos, e a configuração principal cumpriu as regras organizacionais nas 50 runs.
+O sistema cumpre o objetivo principal do tópico: chega ao doente mais cedo do que a difusão ingénua nos cinco cenários, sem despachante central. A principal lição da avaliação é que a maior parte do ganho no tempo até à RCP vem da guia da testemunha, um mecanismo simples, e não da coordenação entre agentes. A coordenação contribui com menos alertas por voluntário e, com fontes pouco fiáveis, metade ou menos dos falsos despachos, à custa de 7 a 14 s na declaração. Nos cenários de pico e de periferia (C3 e C4) leva ainda mais vezes um voluntário ao local antes da ambulância, e em C4 também o DAE. Os resultados negativos são a precisão baixa com sensores muito ruidosos, igual à da B1, e a degradação com perda de mensagens.
 
-Os custos são um atraso de 7 a 14 s na declaração, que passa para a ambulância, e mais mensagens por caso. Os resultados negativos são a precisão baixa com sensores muito ruidosos, igual à da B1, e a degradação com perda de mensagens, incluindo casos duplicados entre células.
-
-Como trabalho futuro, propomos esperar pela resposta P26 antes de declarar perto da fronteira de uma célula, reenviar a ativação da guia (P05) que se perde, simular o caminho 112 para comparar sobre todos os incidentes, correr runs mais longos para a reputação aprender com sensores, e estudar um coordenador efémero para células sem hub.
+Como trabalho futuro, propomos esperar pela resposta P26 antes de declarar um caso perto da fronteira de uma célula, reenviar a ativação da guia quando se perde, simular o caminho do 112 e correr runs mais longos para a reputação ter mais casos de onde aprender.
 
 \section*{Referências}
 
 \begin{list}{}{\setlength{\leftmargin}{1.5em}\setlength{\itemindent}{-1.5em}}
 \item FIPA (2002). \emph{FIPA Contract Net Interaction Protocol Specification} (SC00029H).
 \item Jøsang, A., \& Ismail, R. (2002). The Beta Reputation System. \emph{15th Bled Electronic Commerce Conference}.
-\item Larsen, M. P., Eisenberg, M. S., Cummins, R. O., \& Hallstrom, A. P. (1993). Predicting survival from out-of-hospital cardiac arrest: a graphic model. \emph{Annals of Emergency Medicine}, 22(11), 1652-1658.
-\item Russell, S., \& Norvig, P. (2022). \emph{Artificial Intelligence: A Modern Approach} (4.ª ed.). Pearson.
-\item Shoham, Y., \& Leyton-Brown, K. (2008). \emph{Multiagent Systems: Algorithmic, Game-Theoretic, and Logical Foundations}. Cambridge University Press.
-\item Smith, R. G. (1980). The Contract Net Protocol. \emph{IEEE Transactions on Computers}, C-29(12), 1104-1113.
-\item Wooldridge, M. (2009). \emph{An Introduction to MultiAgent Systems} (2.ª ed.). Wiley.
+\item Larsen, M. P., Eisenberg, M. S., Cummins, R. O., \& Hallstrom, A. P. (1993). Predicting survival from out-of-hospital cardiac arrest: a graphic model. \emph{Annals of Emergency Medicine}, 22(11), 1652--1658.
+\item Smith, R. G. (1980). The Contract Net Protocol. \emph{IEEE Transactions on Computers}, C-29(12), 1104--1113.
 \end{list}
 
 \end{document}
