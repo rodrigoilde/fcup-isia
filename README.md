@@ -31,7 +31,8 @@ the final matrix, which ran on the commit tagged `matrix-final`: 210 valid runs,
 
 ## Setup
 
-SPADE 4.1.4 needs **Python 3.10–3.14**. The macOS system Python (3.9) will not work.
+The project needs **Python 3.11–3.14**. SPADE 4.1.4 accepts 3.10, but the pinned numpy, pandas and
+matplotlib need 3.11 or newer. The macOS system Python (3.9) will not work.
 
 ```bash
 python3.11 -m venv .venv

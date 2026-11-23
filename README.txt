@@ -11,7 +11,9 @@ O README.md (em inglês) tem a descrição completa.
 
 1. REQUISITOS
 
-- Python 3.10 a 3.14 (testado com 3.13 no Windows e com 3.11 no macOS).
+- Python 3.11 a 3.14 (testado com 3.13 no Windows e com 3.11 no macOS).
+  O Python 3.10 não serve: as versões fixadas do numpy, do pandas e do
+  matplotlib exigem 3.11 ou mais recente.
 - Nada mais: o servidor XMPP vem embutido no SPADE e arranca sozinho.
 
 
