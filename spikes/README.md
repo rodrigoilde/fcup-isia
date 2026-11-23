@@ -54,8 +54,7 @@ Raw summaries are written to `spikes/out/*.json`, which is not versioned.
    complete simulation.
    *Superseded in sprint 3:* on Windows the shared server never completed a registration, and even when
    it worked it logged 4 × 100 agents in very slowly. Each run now starts its own private in-process
-   server on its own port (`python -m cemr.run --xmpp-port PORT`); see "XMPP server" in the main
-   [README](../README.md).
+   server on its own port (`python -m cemr.run --xmpp-port PORT`).
 7. **Dependency fix.** pyjabber's SQLAlchemy asyncio layer needs `greenlet`, which `pip install spade`
    did not pull in. It is now listed in `pyproject.toml` and `requirements.txt`.
 8. **Security note.** Even with `--host localhost`, pyjabber also listens on the machine's LAN address

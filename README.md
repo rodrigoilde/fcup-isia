@@ -19,7 +19,7 @@ cases with a Contract Net, keep reputation, and take over each other's cases whe
 | Source code and instructions | `src/cemr/`, this file (and `README.txt`, a short Portuguese version) |
 | Design documentation | `docs/`: Gaia analysis, architectural design, detailed design, protocols and message schemas |
 | Code documentation | Docstrings (in Portuguese); HTML with `pdoc src/cemr -o docs/api` |
-| Performance report | `report/relatorio.pdf` (in Portuguese; LaTeX source in `report/main.tex`) |
+| Performance report | `relatorio.pdf` (in Portuguese) |
 | Visualisation and demo | Dashboard (live or replay of `results/demo/c4-ours-s7`) and the video `docs/demo_c4_takeover.mp4` |
 | Slides | `slides/apresentacao.pdf` (and `.pptx`), with the presentation script in `slides/guiao.md` |
 | Tests and experiment scripts | `tests/`, `experiments/` |
@@ -181,7 +181,7 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
 
 | Path | Contents |
 |---|---|
-| `docs/` | Assignment brief, Gaia analysis, architectural design, detailed design, protocols and message schemas |
+| `docs/` | Gaia analysis, architectural design, detailed design, protocols and message schemas |
 | `src/cemr/sim/` | Environment: clock, city grid, layout, world, patients, incident trace, network model |
 | `src/cemr/protocol/` | Ontology, messages of P01–P28 (one module per sub-organisation) and their JSON encoding |
 | `src/cemr/agents/` | Base agent and conversations; hub (with the case FSM in `case_*.py` and failover); volunteer; EMS; citizen device; bystander |
@@ -193,12 +193,12 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
 | `experiments/` | Matrix runner, overnight script and analysis |
 | `tests/` | Unit tests by topic and end-to-end tests |
 | `spikes/` | Sprint 0 scale spike |
-| `report/` | Performance report (`relatorio.pdf`; LaTeX source `main.tex` with its figures) |
+| `relatorio.pdf` | Performance report |
 | `slides/` | Slides (`.pptx` and `.pdf`) and presentation script |
 
 ## Documentation
 
-1. [Gaia analysis](docs/01-gaia-analysis.pdf), in Portuguese (LaTeX source `docs/01-gaia-analysis.tex`):
+1. [Gaia analysis](docs/01-gaia-analysis.pdf), in Portuguese:
    requirements, sub-organisations, environment, roles, protocols, organisational rules, metrics, scenarios.
 2. [Architectural design](docs/02-architectural-design.md): organisational structure (cell hubs),
    decisions D1–D8, completed role and interaction models, rule enforcement.
@@ -209,7 +209,5 @@ See [spikes/README.md](spikes/README.md) for the measurements behind these choic
    diagrams, and the schema of every message in `src/cemr/protocol/messages_*.py`.
 5. API documentation from the docstrings (in Portuguese): `pdoc src/cemr -o docs/api`, then open
    `docs/api/index.html`.
-6. [Performance report](report/relatorio.pdf), in Portuguese: method, results per scenario, trade-offs,
-   design evolution and limitations, from the final matrix. To rebuild it, run `pdflatex main.tex` or
-   `tectonic main.tex` in `report/` (or use Overleaf; the only figure is drawn with pgfplots, so
-   `main.tex` needs no other files).
+6. [Performance report](relatorio.pdf), in Portuguese: method, results per scenario, trade-offs,
+   design evolution and limitations, from the final matrix.

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "cemr"
 version = "0.1.0"
 description = "Decentralised Community Emergency Medical Response — SPADE multi-agent system (ISIA 2026/27, topic O)"
-readme = "README.md"
+readme = "README.txt"
 requires-python = ">=3.11,<3.15"
 dependencies = [
     "spade==4.1.4",
