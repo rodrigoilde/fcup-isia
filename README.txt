@@ -6,12 +6,14 @@ Sistema multiagente em SPADE que deteta paragens cardíacas e outros incidentes
 urgentes, verifica-os localmente e envia voluntários, DAE e ambulâncias sem
 despachante central. A cidade está dividida em células; o armário de DAE de cada
 célula é o hub que verifica os alertas e coordena os casos por Contract Net.
-O README.md (em inglês) tem a descrição completa.
+O desenho do sistema está em docs/ e a avaliação em relatorio.pdf.
 
 
 1. REQUISITOS
 
-- Python 3.10 a 3.14 (testado com 3.13 no Windows e com 3.11 no macOS).
+- Python 3.11 a 3.14 (testado com 3.13 no Windows e com 3.11 no macOS).
+  O Python 3.10 não serve: as versões fixadas do numpy, do pandas e do
+  matplotlib exigem 3.11 ou mais recente.
 - Nada mais: o servidor XMPP vem embutido no SPADE e arranca sozinho.
 
 
@@ -109,5 +111,5 @@ números do relatório e dos slides vêm de results/ (210 runs, commit de13290).
     results/          resultados da matriz final e run da demo
     docs/             análise Gaia, desenho arquitetural, desenho detalhado,
                       protocolos e esquemas das mensagens
-    report/           relatório de desempenho (relatorio.pdf; fonte LaTeX em main.tex)
+    relatorio.pdf     relatório de desempenho
     slides/           apresentação (apresentacao.pdf) e guião (guiao.md)

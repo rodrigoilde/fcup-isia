@@ -7,7 +7,7 @@ Orientações para o Claude Code neste repositório.
 Trabalho prático 1 de ISIA (FCUP, 2026/27), tópico O: um sistema multiagente em SPADE para resposta médica de emergência comunitária descentralizada (CEMR). O grupo tem dois estudantes. Entrega e apresentação a 19-20 de novembro de 2026.
 
 - Código em `src/cemr/`, testes em `tests/`, cenários em `scenarios/`, experiências em `experiments/`.
-- Desenho em `docs/` (análise Gaia, desenho arquitetural, desenho detalhado, protocolos). Enunciado em `docs/assignment.pdf`.
+- Desenho em `docs/` (análise Gaia, desenho arquitetural, desenho detalhado, protocolos). Relatório de desempenho em `relatorio.pdf`, na raiz.
 - Instalação e comandos no `README.md`.
 
 ## O que o enunciado pede

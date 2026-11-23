@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "cemr"
 version = "0.1.0"
 description = "Decentralised Community Emergency Medical Response — SPADE multi-agent system (ISIA 2026/27, topic O)"
-readme = "README.md"
-requires-python = ">=3.10,<3.15"
+readme = "README.txt"
+requires-python = ">=3.11,<3.15"
 dependencies = [
     "spade==4.1.4",
     "greenlet",  # o pyjabber (servidor XMPP embutido do SPADE) usa SQLAlchemy assíncrono, que precisa dele
@@ -28,7 +28,7 @@ markers = ["slow: end-to-end SPADE runs (~50 s each); deselect with -m \"not slo
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]
