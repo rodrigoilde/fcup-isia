@@ -1,6 +1,6 @@
-# C1 — Base urban scenario (analysis §8.2).
-# Average density of volunteers and AEDs, reliable sensors, good network, isolated incidents.
-# Question: does the end-to-end flow work, and in how many P1 cases does a volunteer arrive before EMS?
+# C1: cenário urbano de base (análise §8.2).
+# Densidade média de voluntários e de DAE, sensores fiáveis, boa rede, incidentes isolados.
+# Pergunta: o fluxo completo funciona, e em quantos casos P1 chega um voluntário antes da EMS?
 
 [run]
 name = "c1_urban"
@@ -8,7 +8,7 @@ name = "c1_urban"
 [incidents]
 rate_per_hour = 3.0
 
-# One known P1 case at t = 60 s, used by the smoke test: the patient wears a device and a bystander sees it.
+# Um caso P1 conhecido aos 60 s, usado pelo smoke test: o doente usa um dispositivo e uma testemunha vê o colapso.
 [[scripted.incidents]]
 id = "S1"
 t_s = 60

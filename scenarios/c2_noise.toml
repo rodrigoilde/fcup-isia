@@ -1,20 +1,21 @@
-# C2 — Noise and false alarms (analysis §8.2).
-# Sensor false positives x5, some drifting sensors, citizens who misread scenes, less reliable observation.
-# Questions: do corroboration and reputation keep precision with little extra delay? AlertFirst or ConfirmFirst?
-# Half of the drifting devices' false positives are never answered by the wearer (device left on a table), so they
-# pass OS4 and reach dispatch; repeated offenders are what reputation can learn from. AlertFirst and ConfirmFirst
-# both wait for the wearer before the hub can declare (OS4), so they differ in latency (M1) and messages (M8).
-# Variants: --set sensors.policy=alert_first | confirm_first; --set policy.reputation=false; --set policy.allocation=naive
+# C2: ruído e falsos alarmes (análise §8.2).
+# Falsos positivos dos sensores x5, alguns sensores em deriva, cidadãos que leem mal a cena, observação menos fiável.
+# Perguntas: a corroboração e a reputação mantêm a precisão com pouco atraso extra? AlertFirst ou ConfirmFirst?
+# O portador nunca responde a metade dos falsos positivos dos dispositivos em deriva (dispositivo deixado numa mesa),
+# por isso estes passam a regra OS4 de fontes independentes e chegam ao despacho; é com as fontes que reincidem que a
+# reputação aprende. A AlertFirst e a ConfirmFirst esperam ambas pelo portador antes de o hub poder declarar (OS4),
+# por isso diferem na latência (M1) e nas mensagens (M8).
+# Variantes: --set sensors.policy=alert_first | confirm_first; --set policy.reputation=false; --set policy.allocation=naive
 
 [run]
 name = "c2_noise"
 
 [sensors]
-fp_per_device_hour = 0.1          # x5 the base rate
-drifting_devices = 4              # F3
-drift_fp_per_hour = 3.0           # a faulty sensor misfires every ~20 min, so the same device repeats within a run
-drift_p_no_response = 0.5         # the wearer never answers half of a drifting device's false positives
+fp_per_device_hour = 0.1          # x5 a taxa de base
+drifting_devices = 4              # modo de falha F3: sensores em deriva
+drift_fp_per_hour = 3.0           # um sensor avariado dispara a cada ~20 min, por isso o mesmo dispositivo repete-se num run
+drift_p_no_response = 0.5         # o portador nunca responde a metade dos falsos positivos de um dispositivo em deriva
 
 [witness]
-false_report_per_hour = 0.1       # F4: per bystander, ~1.5 misread scenes per hour in the city
+false_report_per_hour = 0.1       # modo de falha F4: por testemunha, ~1,5 cenas mal lidas por hora na cidade
 observation_error = 0.2

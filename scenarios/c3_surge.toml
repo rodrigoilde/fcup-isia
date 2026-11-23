@@ -1,7 +1,8 @@
-# C3 — Surge with contention (analysis §8.2).
-# A concert lets out: eight incidents in ten minutes within 400 m, competing for volunteers, AEDs and ambulances.
-# Questions: do exclusivity (OS2, OS3) and priority rules avoid conflicts? How much redundancy pays off?
-# Variants: --set dispatch.redundancy.P1.GO_TO_PATIENT=1 | 2 | 3
+# C3: pico com contenção (análise §8.2).
+# Fim de um concerto: oito incidentes em dez minutos num raio de 400 m, a disputar voluntários, DAE e ambulâncias.
+# Perguntas: a exclusividade (OS2, um compromisso por voluntário; OS3, uma reserva por DAE) e as regras de prioridade
+# evitam conflitos? Quanta redundância compensa?
+# Variantes: --set dispatch.redundancy.P1.GO_TO_PATIENT=1 | 2 | 3
 
 [run]
 name = "c3_surge"

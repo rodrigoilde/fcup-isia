@@ -1,9 +1,9 @@
-# C5 — Adversarial sources (analysis §8.2, F15).
-# The C1 city with two citizens who keep reporting collapses that did not happen. Each false scene looks like
-# an unconscious person who breathes (P2), so without reputation it passes verification through the
-# "reliable human" branch of OS4 and an ambulance is sent for nothing.
-# Question: does the reputation model (D6) stop repeated false reports, and at what cost?
-# Variants: --set policy.reputation=false; --set policy.allocation=naive
+# C5: fontes adversárias (análise §8.2, modo de falha F15).
+# A cidade de C1 com dois cidadãos que relatam repetidamente colapsos que não aconteceram. Cada cena falsa parece
+# uma pessoa inconsciente que respira (P2), por isso, sem reputação, passa a verificação pelo ramo do "humano fiável"
+# da regra OS4 e é enviada uma ambulância sem necessidade.
+# Pergunta: o modelo de reputação (decisão D6) trava relatos falsos repetidos, e a que custo?
+# Variantes: --set policy.reputation=false; --set policy.allocation=naive
 
 [run]
 name = "c5_adversarial"
